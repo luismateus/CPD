@@ -3,7 +3,7 @@
 
 #include "init_particles.c"
 
-struct Particle_t {
+typedef struct Particle_t {
    double x; // x position
    double y; // y position
    double vx; // velocity x
@@ -30,12 +30,16 @@ void update() {
 
 int main(int argc, char *argv[]) {
 
+    particle_t *par;
+
     //input
     if (argc == 5) {
         int rand_seed = strtol(argv[1], NULL, 10);
         int grid_size = strtol(argv[2], NULL, 10);
         int n_part = strtol(argv[3], NULL, 10);
         int time_steps = strtol(argv[4], NULL, 10);
+
+        par = (particle_t *)malloc(n_part);
 
         //init_particles(rand_seed, grid_size, n_part, particle_t *par);
         //for each time-step
