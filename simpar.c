@@ -3,8 +3,7 @@
 
 #include "init_particles.c"
 
-
-typedef struct particle_t {
+struct Particle_t {
    double x; // x position
    double y; // y position
    double vx; // velocity x
@@ -15,24 +14,24 @@ typedef struct particle_t {
 
 
 //determine the center of mass of each cell
-void center_of_mass(){
+void center_of_mass() {
 
 }
 
 //compute the gravitational force applied to each particle
-void gravitational_force(){
+void gravitational_force() {
 
 }
 
 // calculate the new velocity and then the new position of each particle
-void update(){
+void update() {
 
 }
 
-int main( int argc, char *argv[] )  {
+int main(int argc, char *argv[]) {
 
     //input
-    if(argc == 5){
+    if (argc == 5) {
         int rand_seed = strtol(argv[1], NULL, 10);
         int grid_size = strtol(argv[2], NULL, 10);
         int n_part = strtol(argv[3], NULL, 10);
@@ -45,7 +44,7 @@ int main( int argc, char *argv[] )  {
         update();   
 
 
-    }else{
+    } else { 
         printf("Wrong number of arguments!\n");
     }
 
