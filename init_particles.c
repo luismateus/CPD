@@ -2,6 +2,7 @@
 #define G 6.67408e-11
 #define EPSLON 0.01
 
+
 void init_particles(long seed, long ncside, long long n_part, particle_t *par) 
 {
     long long i;

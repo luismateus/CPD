@@ -41,7 +41,7 @@ int main(int argc, char *argv[]) {
 
         par = (particle_t *)malloc(n_part);
 
-        //init_particles(rand_seed, grid_size, n_part, particle_t *par);
+        init_particles(rand_seed, grid_size, n_part, par);
         //for each time-step
         center_of_mass();
         gravitational_force();
