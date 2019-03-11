@@ -31,17 +31,17 @@ void init_particles(long seed, long ncside, long long n_part, particle_t *par)
 }
 
 //determine the center of mass of each cell
-void center_of_mass() {
+void massCenter_each_cell() {
 
 }
 
 //compute the gravitational force applied to each particle
-void gravitational_force() {
+void gforce_each_part() {
 
 }
 
 // calculate the new velocity and then the new position of each particle
-void update() {
+void newVelPos_each_part() {
 
 }
 
