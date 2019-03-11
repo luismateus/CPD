@@ -39,7 +39,7 @@ int main(int argc, char *argv[]) {
         int n_part = strtol(argv[3], NULL, 10);
         int time_steps = strtol(argv[4], NULL, 10);
 
-        par = (particle_t *)malloc(n_part);
+        par = (particle_t *)malloc(n_part * sizeof(particle_t));
 
         init_particles(rand_seed, grid_size, n_part, par);
         //for each time-step
