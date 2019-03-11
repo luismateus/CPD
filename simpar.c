@@ -4,6 +4,16 @@
 #include "init_particles.c"
 
 
+typedef struct particle_t {
+   double x; // x position
+   double y; // y position
+   double vx; // velocity x
+   double vy; // velocity y
+   double m; //mass
+} particle_t;
+
+
+
 //determine the center of mass of each cell
 void center_of_mass(){
 
@@ -18,8 +28,6 @@ void gravitational_force(){
 void update(){
 
 }
-
-
 
 int main( int argc, char *argv[] )  {
 
