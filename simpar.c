@@ -11,6 +11,8 @@ typedef struct Particle_t {
    double vx; // velocity x
    double vy; // velocity y
    double m; // mass
+   double gforcex;
+   double gforcey;
 } particle_t;
 
 typedef struct Cell_t {
@@ -68,12 +70,47 @@ void massCenter_each_cell(int npar, int ncell, particle_t *par, cell_t *cell) {
 }
 
 // compute the gravitational force applied to each particle
-void gforce_each_part(particle_t *par) {
+void gforce_each_part(int npar, int ncell, particle_t *par, cell_t *cell) {
 
+    double x,y,f,d;
+
+    for(int i = 0; i < npar; i++)
+    {
+        //int n=1;
+        par[i].gforcex=0;
+        par[i].gforcey=0;
+        for(int n = 0; i < ncell * ncell; n++)
+        {
+            x = cell[n].x - par[i].x;
+            y = cell[n].y - par[i].y;
+            d=sqrt(pow(x)+pow(y));
+            f=G*(par[i].m*cell[n].m)/pow(d);
+            par[i].gforcex+=x/(d/f);
+            par[i].gforcey+=y/(d/f);
+
+        }
+    }
 }
 
 // calculate the new velocity and then the new position of each particle
-void newVelPos_each_part(particle_t *par) {
+void newVelPos_each_part(int npar, particle_t *par) {
+
+    for(int i = 0; i < npar; i++)
+    {
+        //int n=1;
+        par[i].gforcex=0;
+        par[i].gforcey=0;
+        for(int n = 0; i < ncell * ncell; n++)
+        {
+            x = cell[n].x - par[i].x;
+            y = cell[n].y - par[i].y;
+            d=sqrt(pow(x)+pow(y));
+            f=G*(par[i].m*cell[n].m)/pow(d);
+            par[i].gforcex+=x/(d/f);
+            par[i].gforcey+=y/(d/f);
+
+        }
+    }
 
 }
 
