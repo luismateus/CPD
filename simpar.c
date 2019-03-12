@@ -29,17 +29,17 @@ void init_particles(long seed, long ncside, long long n_part, particle_t *par) {
 }
 
 // determine the center of mass of each cell
-void massCenter_each_cell() {
+void massCenter_each_cell(particle_t *par) {
 
 }
 
 // compute the gravitational force applied to each particle
-void gforce_each_part() {
+void gforce_each_part(particle_t *par) {
 
 }
 
 // calculate the new velocity and then the new position of each particle
-void newVelPos_each_part() {
+void newVelPos_each_part(particle_t *par) {
 
 }
 
@@ -49,9 +49,9 @@ int main(int argc, char *argv[]) {
 
     //input
     if (argc == 5) {
-        int rand_seed = strtol(argv[1], NULL, 10);
-        int grid_size = strtol(argv[2], NULL, 10);
-        int n_part = strtol(argv[3], NULL, 10);
+        long rand_seed = strtol(argv[1], NULL, 10);
+        long grid_size = strtol(argv[2], NULL, 10);
+        long long n_part = strtol(argv[3], NULL, 10);
         int time_steps = strtol(argv[4], NULL, 10);
 
         par = (particle_t *)malloc(n_part * sizeof(particle_t));
@@ -60,9 +60,9 @@ int main(int argc, char *argv[]) {
 
         // for each time-step
         for (t = 0; t < time_steps; t++) {
-            massCenter_each_cell();
-            gforce_each_part();
-            newVelPos_each_part();
+            massCenter_each_cell(par);
+            gforce_each_part(par);
+            newVelPos_each_part(par);
         }
 
 
