@@ -46,7 +46,7 @@ void massCenter_each_cell(int npar, int ncell, particle_t *par, cell_t *cell) {
         cell[n].y += par[i].y*par[i].m;
         cell[n].m += par[i].m;
     }
-    for(int i = 0; i < ncell; i++)
+    for(int i = 0; i < ncell * ncell; i++)
     {
         cell[i].x /= cell[i].m;
         cell[i].y /= cell[i].m;
