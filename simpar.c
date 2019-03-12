@@ -10,7 +10,7 @@ typedef struct Particle_t {
    double y; // y position
    double vx; // velocity x
    double vy; // velocity y
-   double m; //mass
+   double m; // mass
 } particle_t;
 
 void init_particles(long seed, long ncside, long long n_part, particle_t *par) {
@@ -28,12 +28,12 @@ void init_particles(long seed, long ncside, long long n_part, particle_t *par) {
     }
 }
 
-//determine the center of mass of each cell
+// determine the center of mass of each cell
 void massCenter_each_cell() {
 
 }
 
-//compute the gravitational force applied to each particle
+// compute the gravitational force applied to each particle
 void gforce_each_part() {
 
 }
@@ -57,7 +57,8 @@ int main(int argc, char *argv[]) {
         par = (particle_t *)malloc(n_part * sizeof(particle_t));
 
         init_particles(rand_seed, grid_size, n_part, par);
-        //for each time-step
+
+        // for each time-step
         for (t = 0; t < time_steps; t++) {
             massCenter_each_cell();
             gforce_each_part();
