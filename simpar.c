@@ -13,14 +13,12 @@ typedef struct Particle_t {
    double m; //mass
 } particle_t;
 
-void init_particles(long seed, long ncside, long long n_part, particle_t *par) 
-{
+void init_particles(long seed, long ncside, long long n_part, particle_t *par) {
     long long i;
 
     srandom(seed);
 
-    for(i = 0; i < n_part; i++)
-    {
+    for(i = 0; i < n_part; i++) {
         par[i].x = RND0_1;
         par[i].y = RND0_1;
         par[i].vx = RND0_1 / ncside / 10.0;
@@ -46,8 +44,8 @@ void newVelPos_each_part() {
 }
 
 int main(int argc, char *argv[]) {
-
     particle_t *par;
+    int t;
 
     //input
     if (argc == 5) {
@@ -60,9 +58,11 @@ int main(int argc, char *argv[]) {
 
         init_particles(rand_seed, grid_size, n_part, par);
         //for each time-step
-        center_of_mass();
-        gravitational_force();
-        update();   
+        for (t = 0; t < time_steps; t++) {
+            massCenter_each_cell();
+            gforce_each_part();
+            newVelPos_each_part();
+        }
 
 
     } else { 
