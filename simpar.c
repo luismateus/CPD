@@ -42,6 +42,7 @@ void init_particles(long seed, long ncside, long long n_part, particle_t *par) {
 // determine the center of mass of each cell
 void massCenter_each_cell(int npar, int ncell, particle_t *par, cell_t *cell) {
     int n;
+
     for(int i = 0; i < npar; i++)
     {
         //int n=1;
@@ -53,8 +54,10 @@ void massCenter_each_cell(int npar, int ncell, particle_t *par, cell_t *cell) {
     }
     for(int i = 0; i < ncell * ncell; i++)
     {
-        cell[i].x /= cell[i].m;
-        cell[i].y /= cell[i].m;
+        if (cell[i].m>0) {
+            cell[i].x /= cell[i].m;
+            cell[i].y /= cell[i].m;
+        }
     }
 
     /*
@@ -89,7 +92,6 @@ void gforce_each_part(int npar, int ncell, particle_t *par, cell_t *cell) {
     int nx,ny,vx,vy;
     for(int i = 0; i < npar; i++)
     {
-        //int n=1;
         par[i].gforcex=0;
         par[i].gforcey=0;
         c=par[i].c;
@@ -100,7 +102,6 @@ void gforce_each_part(int npar, int ncell, particle_t *par, cell_t *cell) {
             vx=(n%3- 1);
             vy=(floor(n/3) - 1);
             nn=(nx + vx + ncell ) % ncell + ((ny + vy+ ncell ) % ncell) * ncell;
-            
             if (vx+nx<0){
                 x = cell[nn].x - par[i].x-1;
             } else if (vx+nx>ncell){
@@ -123,13 +124,9 @@ void gforce_each_part(int npar, int ncell, particle_t *par, cell_t *cell) {
             }
             else{
                 f=G*(par[i].m*cell[nn].m)/pow(d,2);   
-                
-                printf("geforcex: %f\n", par[i].gforcex);
 
                 par[i].gforcex+=x/(d/f);
                 par[i].gforcey+=y/(d/f);
-                printf("x: %f,d: %f,f: %f,n: %d\n",x,d,f,n);
-             
             }
 
         }
@@ -147,11 +144,25 @@ void newVelPos_each_part(int npar, int ncell, particle_t *par) {
         par[i].vx+=ax;
         par[i].vy+=ay;
         par[i].x+=par[i].vx+ax/2;
+        par[i].x=fmod(par[i].x,1);
         par[i].y+=par[i].vy+ay/2;
+        par[i].y=fmod(par[i].y,1);
         par[i].c= (int)floor(par[i].x * ncell) + ((int)floor(par[i].y * ncell))* ncell;
     }
 
 }
+
+void total_center_of_mass(particle_t *par, long npar){
+    double x=0,y=0,m=0;
+    for(int i = 0; i < npar; i++){
+        m+=par[i].m;
+        x+=par[i].x*par[i].m;
+        y+=par[i].y*par[i].m;
+    }
+    x/=m;
+    y/=m;
+}
+
 
 int main(int argc, char *argv[]) {
     particle_t *par;
@@ -176,10 +187,11 @@ int main(int argc, char *argv[]) {
             massCenter_each_cell(n_part, grid_size, par, cell);
             gforce_each_part(n_part, grid_size, par, cell);
             newVelPos_each_part(n_part,grid_size,par);
-            init_cell(cell, grid_size);          
+            init_cell(cell, grid_size);   
+            printf("> %d\n",t);
         }
         printf("%f %f\n",par[0].x, par[0].y);
-
+        total_center_of_mass(par,n_part);
 
 
     } else { 
