@@ -13,6 +13,12 @@ typedef struct Particle_t {
    double m; // mass
 } particle_t;
 
+typedef struct Cell_t {
+   double x; // x position
+   double y; // y position
+   double m; // mass
+} cell_t;
+
 void init_particles(long seed, long ncside, long long n_part, particle_t *par) {
     long long i;
 
@@ -29,7 +35,35 @@ void init_particles(long seed, long ncside, long long n_part, particle_t *par) {
 }
 
 // determine the center of mass of each cell
-void massCenter_each_cell(particle_t *par) {
+void massCenter_each_cell(int npar, int ncell, particle_t *par, cell_t *cell) {
+
+    for(int i = 0; i < npar; i++)
+    {
+        //int n=1;
+        int n= (int)floor(par[i].x * ncell) + ((int)floor(par[i].y * ncell))* ncell;
+
+        cell[n].x += par[i].x*par[i].m;
+        cell[n].y += par[i].y*par[i].m;
+        cell[n].m += par[i].m;
+    }
+    for(int i = 0; i < ncell; i++)
+    {
+        cell[i].x /= cell[i].m;
+        cell[i].y /= cell[i].m;
+    }
+
+    /*
+    for(int i = 0; i < npar; i++)
+    {
+        //int n=1;
+        int n= (int)floor(par[i].x * ncell) + ((int)floor(par[i].y * ncell))* ncell;
+        cell[n].m += par[i].m;
+        cell[n].x += (par[i].x - cell[n].x)*(par[i].m/ cell[n].m);
+        cell[n].y+= (par[i].y - cell[n].y)*(par[i].m/ cell[n].m);
+        
+    }
+    */
+
 
 }
 
