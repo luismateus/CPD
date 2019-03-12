@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 
 #define RND0_1 ((double) random() / ((long long)1<<31))
 #define G 6.67408e-11
@@ -32,8 +33,9 @@ void init_particles(long seed, long ncside, long long n_part, particle_t *par) {
         par[i].y = RND0_1;
         par[i].vx = RND0_1 / ncside / 10.0;
         par[i].vy = RND0_1 / ncside / 10.0;
-
         par[i].m = RND0_1 * ncside / (G * 1e6 * n_part);
+
+        par[i].c= (int)floor(par[i].x * ncside) + ((int)floor(par[i].y * ncside))* ncside;
     }
 }
 
@@ -70,6 +72,15 @@ void massCenter_each_cell(int npar, int ncell, particle_t *par, cell_t *cell) {
 
 }
 
+void init_cell(cell_t *cell, long grid_size){
+    for(int i = 0; i < grid_size*grid_size; i++){
+        cell[i].x = 0;
+        cell[i].y = 0;
+        cell[i].m = 0;
+    }
+
+}
+
 // compute the gravitational force applied to each particle
 void gforce_each_part(int npar, int ncell, particle_t *par, cell_t *cell) {
 
@@ -82,9 +93,8 @@ void gforce_each_part(int npar, int ncell, particle_t *par, cell_t *cell) {
         par[i].gforcex=0;
         par[i].gforcey=0;
         c=par[i].c;
-        for(int n = 0; i < 9; n++)
+        for(int n = 0; n < 9; n++)
         {
-
             nx=c%ncell;
             ny=floor(c/ncell);
             vx=(n%3- 1);
@@ -107,10 +117,20 @@ void gforce_each_part(int npar, int ncell, particle_t *par, cell_t *cell) {
                 y = cell[nn].y - par[i].y;
             }
 
-            d=sqrt(pow(x)+pow(y));
-            f=G*(par[i].m*cell[nn].m)/pow(d);
-            par[i].gforcex+=x/(d/f);
-            par[i].gforcey+=y/(d/f);
+            d=sqrt(pow(x,2)+pow(y,2));
+            if(d < EPSLON){
+                f = 0;
+            }
+            else{
+                f=G*(par[i].m*cell[nn].m)/pow(d,2);   
+                
+                printf("geforcex: %f\n", par[i].gforcex);
+
+                par[i].gforcex+=x/(d/f);
+                par[i].gforcey+=y/(d/f);
+                printf("x: %f,d: %f,f: %f,n: %d\n",x,d,f,n);
+             
+            }
 
         }
     }
@@ -135,6 +155,7 @@ void newVelPos_each_part(int npar, int ncell, particle_t *par) {
 
 int main(int argc, char *argv[]) {
     particle_t *par;
+    cell_t *cell;
     int t;
 
     //input
@@ -148,12 +169,17 @@ int main(int argc, char *argv[]) {
 
         init_particles(rand_seed, grid_size, n_part, par);
 
-        // for each time-step
+        cell = (cell_t *)malloc(grid_size * grid_size * sizeof(cell_t));
+        init_cell(cell, grid_size);
+
         for (t = 0; t < time_steps; t++) {
-            massCenter_each_cell(par);
-            gforce_each_part(par);
-            newVelPos_each_part(par);
+            massCenter_each_cell(n_part, grid_size, par, cell);
+            gforce_each_part(n_part, grid_size, par, cell);
+            newVelPos_each_part(n_part,grid_size,par);
+            init_cell(cell, grid_size);          
         }
+        printf("%f %f\n",par[0].x, par[0].y);
+
 
 
     } else { 
