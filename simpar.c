@@ -11,6 +11,7 @@ typedef struct Particle_t {
    double vx; // velocity x
    double vy; // velocity y
    double m; // mass
+   int c; // cell
    double gforcex;
    double gforcey;
 } particle_t;
@@ -38,12 +39,12 @@ void init_particles(long seed, long ncside, long long n_part, particle_t *par) {
 
 // determine the center of mass of each cell
 void massCenter_each_cell(int npar, int ncell, particle_t *par, cell_t *cell) {
-
+    int n;
     for(int i = 0; i < npar; i++)
     {
         //int n=1;
-        int n= (int)floor(par[i].x * ncell) + ((int)floor(par[i].y * ncell))* ncell;
-
+        
+        n=par[i].c;
         cell[n].x += par[i].x*par[i].m;
         cell[n].y += par[i].y*par[i].m;
         cell[n].m += par[i].m;
@@ -73,18 +74,41 @@ void massCenter_each_cell(int npar, int ncell, particle_t *par, cell_t *cell) {
 void gforce_each_part(int npar, int ncell, particle_t *par, cell_t *cell) {
 
     double x,y,f,d;
-
+    int nn,c;
+    int nx,ny,vx,vy;
     for(int i = 0; i < npar; i++)
     {
         //int n=1;
         par[i].gforcex=0;
         par[i].gforcey=0;
-        for(int n = 0; i < ncell * ncell; n++)
+        c=par[i].c;
+        for(int n = 0; i < 9; n++)
         {
-            x = cell[n].x - par[i].x;
-            y = cell[n].y - par[i].y;
+
+            nx=c%ncell;
+            ny=floor(c/ncell);
+            vx=(n%3- 1);
+            vy=(floor(n/3) - 1);
+            nn=(nx + vx + ncell ) % ncell + ((ny + vy+ ncell ) % ncell) * ncell;
+            
+            if (vx+nx<0){
+                x = cell[nn].x - par[i].x-1;
+            } else if (vx+nx>ncell){
+                x = cell[nn].x - par[i].x+1;
+            } else {
+                x = cell[nn].x - par[i].x;
+            }
+            
+            if (vy+ny<0){
+                y = cell[nn].y - par[i].y-1;
+            } else if (vy+ny>ncell){
+                y = cell[nn].y - par[i].y+1;
+            } else {
+                y = cell[nn].y - par[i].y;
+            }
+
             d=sqrt(pow(x)+pow(y));
-            f=G*(par[i].m*cell[n].m)/pow(d);
+            f=G*(par[i].m*cell[nn].m)/pow(d);
             par[i].gforcex+=x/(d/f);
             par[i].gforcey+=y/(d/f);
 
@@ -93,23 +117,18 @@ void gforce_each_part(int npar, int ncell, particle_t *par, cell_t *cell) {
 }
 
 // calculate the new velocity and then the new position of each particle
-void newVelPos_each_part(int npar, particle_t *par) {
+void newVelPos_each_part(int npar, int ncell, particle_t *par) {
 
+    double ax,ay;
     for(int i = 0; i < npar; i++)
     {
-        //int n=1;
-        par[i].gforcex=0;
-        par[i].gforcey=0;
-        for(int n = 0; i < ncell * ncell; n++)
-        {
-            x = cell[n].x - par[i].x;
-            y = cell[n].y - par[i].y;
-            d=sqrt(pow(x)+pow(y));
-            f=G*(par[i].m*cell[n].m)/pow(d);
-            par[i].gforcex+=x/(d/f);
-            par[i].gforcey+=y/(d/f);
-
-        }
+        ax=par[i].gforcex/par[i].m;
+        ay=par[i].gforcey/par[i].m;
+        par[i].vx+=ax;
+        par[i].vy+=ay;
+        par[i].x+=par[i].vx+ax/2;
+        par[i].y+=par[i].vy+ay/2;
+        par[i].c= (int)floor(par[i].x * ncell) + ((int)floor(par[i].y * ncell))* ncell;
     }
 
 }
