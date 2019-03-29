@@ -46,18 +46,18 @@ void massCenter_each_cell(int npar, int ncell, particle_t *par, double* cellX, d
 
     int n;
     long long i;
-    double aux = pow(ncell,2);
+    int aux = pow(ncell,2);
     
-    //#pragma omp parallel
-    //{
-        //#pragma omp for private(n), reduction(+:cellX[aux],cellY[aux],cellM[aux])
+    #pragma omp parallel
+    {
+        #pragma omp for private(n), reduction(+:cellX[aux],cellY[aux],cellM[aux])
     for (i = 0; i < npar; i++) {
         n = par[i].c;  
         cellM[n] += par[i].m; 
         cellX[n] += par[i].x*par[i].m;
         cellY[n] += par[i].y*par[i].m;
         }   
-    //}
+    }
     for (n = 0; n < aux; n++) {
         if(cellM[n]!=0){
             cellX[n] = cellX[n]/cellM[n];
