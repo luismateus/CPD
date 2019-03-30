@@ -39,42 +39,8 @@ void init_particles(long seed, long ncside, long long n_part, particle_t *par) {
 }
 
 
-/* determine the center of mass of each cell */
-void massCenter_each_cell(int npar, int ncell, particle_t *par, double* cellX, double* cellY, double* cellM) {
-
-    //clock_t begin = clock();
-
-    int n;
-    long long i;
-    int aux = pow(ncell,2);
-    
-    #pragma omp parallel
-    {
-        #pragma omp for private(n), reduction(+:cellX[aux],cellY[aux],cellM[aux])
-    for (i = 0; i < npar; i++) {
-        n = par[i].c;  
-        cellM[n] += par[i].m; 
-        cellX[n] += par[i].x*par[i].m;
-        cellY[n] += par[i].y*par[i].m;
-        }   
-    }
-    for (n = 0; n < aux; n++) {
-        if(cellM[n]!=0){
-            cellX[n] = cellX[n]/cellM[n];
-            cellY[n] = cellY[n]/cellM[n];
-        }
-        //printf("%f, %f, %f\n",cell[n].x,cell[n].y,cell[n].m);
-    }
-    
-
-    // clock_t end = clock();
-    // double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
-    //printf("massCenter_each_cell: %f seconds\n",time_spent);
-}
-
-void init_cell(double* cellX, double* cellY, double* cellM, int grid_size) {
+void init_cell(long aux, double cellX[aux], double cellY[aux], double cellM[aux]) {
     int i;
-    double aux = pow(grid_size,2);
     for (i = 0; i < aux; i++) {
         cellX[i] = 0;
         cellY[i] = 0;
@@ -82,8 +48,50 @@ void init_cell(double* cellX, double* cellY, double* cellM, int grid_size) {
     }
 }
 
+/* determine the center of mass of each cell */
+void massCenter_each_cell(long long npar, long ncell, particle_t *par, double cellX[ncell*ncell], double cellY[ncell*ncell], double cellM[ncell*ncell]) {
+
+    //clock_t begin = clock();
+
+    int n;
+    long long i;
+    long aux = pow(ncell,2);
+    double cell2_X[aux], cell2_Y[aux], cell2_M[aux];
+    init_cell(aux, cell2_X, cell2_Y, cell2_M);
+    //#pragma omp parallel
+    //{
+      //  #pragma omp for private(n), reduction(+:cell2_X[aux],cell2_Y[aux],cell2_M[aux])
+        for (i = 0; i < npar; i++) {
+            n=par[i].c;
+            if (!cell2_M[n]){
+                cell2_X[n] = par[i].x*par[i].m;
+                cell2_Y[n] = par[i].y*par[i].m;
+                cell2_M[n] = par[i].m;  
+            } else {
+                cell2_X[n] += par[i].x*par[i].m;
+                cell2_Y[n] += par[i].y*par[i].m;
+                cell2_M[n] += par[i].m;   
+            }
+        }   
+    //}
+    for (n = 0; n < aux; n++) {
+        if(cell2_M[n]!=0){
+            cellM[n] = cell2_M[n];
+            cellX[n] = cell2_X[n]/cellM[n];
+            cellY[n] = cell2_Y[n]/cellM[n];
+        }
+        //printf("%f, %f, %f\n",cell[n].x,cell[n].y,cell[n].m);
+    }
+    
+    
+
+    // clock_t end = clock();
+    // double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+    //printf("massCenter_each_cell: %f seconds\n",time_spent);
+}
+
 /* compute the gravitational force applied to each particle */
-void gforce_each_part(int npar, int ncell, particle_t *par, double* cellX, double* cellY, double* cellM) {
+void gforce_each_part(long long npar, long ncell, particle_t *par, double cellX[ncell*ncell], double cellY[ncell*ncell], double cellM[ncell*ncell]) {
     double x, y, f, d;
     int nn, c, nx, ny, vx, vy, n;
     long long i;
@@ -138,7 +146,7 @@ void gforce_each_part(int npar, int ncell, particle_t *par, double* cellX, doubl
 }
 
 /* calculate the new velocity and then the new position of each particle */
-void newVelPos_each_part(int npar, int ncell, particle_t *par) {
+void newVelPos_each_part(long long npar, long ncell, particle_t *par) {
     double ax, ay;
     long long i;
 
@@ -165,7 +173,7 @@ void newVelPos_each_part(int npar, int ncell, particle_t *par) {
     //printf("newVelPos_each_part: %f seconds\n",time_spent);
 }
 
-void total_center_of_mass(particle_t *par, long npar) {
+void total_center_of_mass(particle_t *par, long long npar) {
     double x = 0, y = 0, m = 0;
     long long i;
 
@@ -197,33 +205,22 @@ int main(int argc, char *argv[]) {
 
         init_particles(rand_seed, grid_size, n_part,(particle_t *) par);
 
-        size_t size = grid_size * grid_size * sizeof(double);
-        double* cellX = (double *)malloc(size);
-        double* cellM = (double *)malloc(size);
-        double* cellY = (double *)malloc(size);
-        if (cellM==NULL || cellX==NULL || cellY==NULL) {
-            printf("malloc cell\n");
-            exit(EXIT_FAILURE); 
-        }
+        long aux = pow(grid_size,2);
+        double cellX[aux], cellY[aux], cellM[aux];
 
+        init_cell(aux, cellX, cellY, cellM);
 
-        //init_cell(cellX, cellY, cellM, grid_size);
 
         int t;
         for (t = 0; t < time_steps; t++) {
-            init_cell(cellX, cellY, cellM, grid_size);
-            massCenter_each_cell(n_part, grid_size,(particle_t *) par,(double *) cellX,(double *) cellY,(double *) cellM);
+            massCenter_each_cell(n_part, grid_size,(particle_t *) par, cellX, cellY, cellM);
             gforce_each_part(n_part, grid_size,(particle_t *) par, cellX, cellY, cellM);
             newVelPos_each_part(n_part, grid_size,(particle_t *) par);
-            //init_cell(cellX, cellY, cellM, grid_size);
+            //init_cell(aux,cellX, cellY, cellM);
         }
         printf("%.2f %.2f\n", par[0].x, par[0].y);
-
         total_center_of_mass((particle_t *) par, n_part);
         free(par);
-        free(cellX);
-        free(cellY);
-        free(cellM);
 
     } else { 
         printf("Wrong number of arguments!\n");
