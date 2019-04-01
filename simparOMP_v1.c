@@ -33,7 +33,6 @@ void init_particles(long seed, long ncside, long long n_part, particle_t *par) {
         par[i].vx = RND0_1 / ncside / 10.0;
         par[i].vy = RND0_1 / ncside / 10.0;
         par[i].m = RND0_1 * ncside / (G * 1e6 * n_part);
-
         par[i].c = (int)floor(par[i].x * ncside) + ((int)floor(par[i].y * ncside)) * ncside;     
     }
 }
@@ -56,29 +55,31 @@ void massCenter_each_cell(long long npar, long ncell, particle_t *par, double ce
     int n;
     long long i;
     long aux = pow(ncell,2);
-    double cell2_X[aux], cell2_Y[aux], cell2_M[aux];
-    init_cell(aux, cell2_X, cell2_Y, cell2_M);
-    //#pragma omp parallel
-    //{
-      //  #pragma omp for private(n), reduction(+:cell2_X[aux],cell2_Y[aux],cell2_M[aux])
-        for (i = 0; i < npar; i++) {
-            n=par[i].c;
-            if (!cell2_M[n]){
-                cell2_X[n] = par[i].x*par[i].m;
-                cell2_Y[n] = par[i].y*par[i].m;
-                cell2_M[n] = par[i].m;  
-            } else {
-                cell2_X[n] += par[i].x*par[i].m;
-                cell2_Y[n] += par[i].y*par[i].m;
-                cell2_M[n] += par[i].m;   
-            }
-        }   
-    //}
+    //double cell2_X[aux], cell2_Y[aux], cell2_M[aux];
+    //init_cell(aux, cell2_X, cell2_Y, cell2_M);
+    init_cell(aux, cellX, cellY, cellM);
+    
+    #pragma omp parallel
+    {
+        #pragma omp for private(n), reduction(+:cellX[:aux],cellY[:aux],cellM[:aux])
+            for (i = 0; i < npar; i++) {
+                n=par[i].c;
+                if (!cellM[n]){ 
+                    cellX[n] = par[i].x*par[i].m;
+                    cellY[n] = par[i].y*par[i].m;
+                    cellM[n] = par[i].m;  
+                } else {
+                    cellX[n] += par[i].x*par[i].m;
+                    cellY[n] += par[i].y*par[i].m;
+                    cellM[n] += par[i].m; 
+                }
+            }   
+    }
     for (n = 0; n < aux; n++) {
-        if(cell2_M[n]!=0){
-            cellM[n] = cell2_M[n];
-            cellX[n] = cell2_X[n]/cellM[n];
-            cellY[n] = cell2_Y[n]/cellM[n];
+        if(cellM[n]!=0){
+            //cellM[n] = cellM[n];
+            cellX[n] = cellX[n]/cellM[n];
+            cellY[n] = cellY[n]/cellM[n];
         }
         //printf("%f, %f, %f\n",cell[n].x,cell[n].y,cell[n].m);
     }
@@ -199,12 +200,11 @@ int main(int argc, char *argv[]) {
 
         particle_t *par = (particle_t *)malloc(n_part * sizeof(particle_t));
         if (par == NULL) {
-            printf("malloc par\n");
+            printf("malloc particle_t failed\n");
             exit(EXIT_FAILURE); 
         }
 
         init_particles(rand_seed, grid_size, n_part,(particle_t *) par);
-
         long aux = pow(grid_size,2);
         double cellX[aux], cellY[aux], cellM[aux];
 
