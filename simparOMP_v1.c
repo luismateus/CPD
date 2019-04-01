@@ -55,9 +55,6 @@ void massCenter_each_cell(long long npar, long ncell, particle_t *par, double ce
     int n;
     long long i;
     long aux = pow(ncell,2);
-    //double cell2_X[aux], cell2_Y[aux], cell2_M[aux];
-    //init_cell(aux, cell2_X, cell2_Y, cell2_M);
-    init_cell(aux, cellX, cellY, cellM);
     
     #pragma omp parallel
     {
@@ -77,11 +74,9 @@ void massCenter_each_cell(long long npar, long ncell, particle_t *par, double ce
     }
     for (n = 0; n < aux; n++) {
         if(cellM[n]!=0){
-            //cellM[n] = cellM[n];
             cellX[n] = cellX[n]/cellM[n];
             cellY[n] = cellY[n]/cellM[n];
         }
-        //printf("%f, %f, %f\n",cell[n].x,cell[n].y,cell[n].m);
     }
     
     
@@ -216,7 +211,7 @@ int main(int argc, char *argv[]) {
             massCenter_each_cell(n_part, grid_size,(particle_t *) par, cellX, cellY, cellM);
             gforce_each_part(n_part, grid_size,(particle_t *) par, cellX, cellY, cellM);
             newVelPos_each_part(n_part, grid_size,(particle_t *) par);
-            //init_cell(aux,cellX, cellY, cellM);
+            init_cell(aux,cellX, cellY, cellM);
         }
         printf("%.2f %.2f\n", par[0].x, par[0].y);
         total_center_of_mass((particle_t *) par, n_part);
