@@ -5,7 +5,7 @@
 
 #define RND0_1 ((double) random() / ((long long)1<<31))
 #define G 6.67408e-11
-#define EPSLON 0.01
+#define EPSLON 0.0005
 
 typedef struct Particle_t {
    double x; /* x position */
@@ -199,6 +199,8 @@ int main(int argc, char *argv[]) {
         printf("%.2f %.2f\n", par[0].x, par[0].y);
 
         total_center_of_mass(par, n_part);
+        free(par);
+        free(cell);
     } else { 
         printf("Wrong number of arguments!\n");
     }
