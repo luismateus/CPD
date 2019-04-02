@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
+#include <omp.h>
+
 
 #include <time.h> //just to print the time spent in each function
 
@@ -19,8 +21,6 @@ typedef struct Particle_t {
    double gforcex;
    double gforcey;
 } particle_t;
-
-
 
 void init_particles(long seed, long ncside, long long n_part, particle_t *par) {
     long long i;
@@ -55,20 +55,24 @@ void massCenter_each_cell(long long npar, long ncell, particle_t *par, double ce
     int n;
     long long i;
     long aux = pow(ncell,2);
+    omp_lock_t lck_a;
+    omp_init_lock(&lck_a);
     
     #pragma omp parallel
     {
-        #pragma omp for private(n), reduction(+:cellX[:aux],cellY[:aux],cellM[:aux])
+        #pragma omp for private(cellX,cellY,cellM)//, reduction(+:cellX[:aux],cellY[:aux],cellM[:aux])
             for (i = 0; i < npar; i++) {
                 n=par[i].c;
-                if (!cellM[n]){ 
-                    cellX[n] = par[i].x*par[i].m;
-                    cellY[n] = par[i].y*par[i].m;
-                    cellM[n] = par[i].m;  
-                } else {
-                    cellX[n] += par[i].x*par[i].m;
-                    cellY[n] += par[i].y*par[i].m;
-                    cellM[n] += par[i].m; 
+                #pragma omp critical{
+                    if (!cellM[n]){ 
+                        cellX[n] = par[i].x*par[i].m;
+                        cellY[n] = par[i].y*par[i].m;
+                        cellM[n] = par[i].m;
+                    } else {
+                        cellX[n] += par[i].x*par[i].m;
+                        cellY[n] += par[i].y*par[i].m;
+                        cellM[n] += par[i].m; 
+                    }
                 }
             }   
     }
@@ -180,6 +184,8 @@ void total_center_of_mass(particle_t *par, long long npar) {
     }
     x /= m;
     y /= m;
+
+    printf("%.2f %.2f\n", par[0].x, par[0].y);
     printf("%.2f %.2f\n", x, y);
 
 }
@@ -193,7 +199,7 @@ int main(int argc, char *argv[]) {
         long long n_part = strtol(argv[3], NULL, 10);
         int time_steps = strtol(argv[4], NULL, 10);
 
-        particle_t *par = (particle_t *)malloc(n_part * sizeof(particle_t));
+        particle_t *par =(particle_t *) malloc(n_part * sizeof(particle_t));
         if (par == NULL) {
             printf("malloc particle_t failed\n");
             exit(EXIT_FAILURE); 
@@ -213,7 +219,7 @@ int main(int argc, char *argv[]) {
             newVelPos_each_part(n_part, grid_size,(particle_t *) par);
             init_cell(aux,cellX, cellY, cellM);
         }
-        printf("%.2f %.2f\n", par[0].x, par[0].y);
+        //printf("%.2f %.2f\n", par[0].x, par[0].y);
         total_center_of_mass((particle_t *) par, n_part);
         free(par);
 
