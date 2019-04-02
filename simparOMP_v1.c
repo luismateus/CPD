@@ -7,7 +7,7 @@
 
 #define RND0_1 ((double) random() / ((long long)1<<31))
 #define G 6.67408e-11
-#define EPSLON 0.0005
+#define EPSLON 0.00000025
 
 typedef struct Particle_t {
    double x; /* x position */
@@ -88,7 +88,7 @@ void massCenter_each_cell(long long npar, long ncell, particle_t *par, double ce
 
 /* compute the gravitational force applied to each particle */
 void gforce_each_part(long long npar, long ncell, particle_t *par, double cellX[ncell*ncell], double cellY[ncell*ncell], double cellM[ncell*ncell]) {
-    double x, y, f, d;
+    double x, y, f, d,d2;
     int nn, c, nx, ny, vx, vy, n;
     long long i;
 
@@ -108,7 +108,7 @@ void gforce_each_part(long long npar, long ncell, particle_t *par, double cellX[
 
             nn = (nx + vx + ncell) % ncell + ((ny + vy + ncell) % ncell) * ncell;
 
-            if (vx + nx < 0) {
+            if (vx + nx < 0) { 
                 x = cellX[nn] - par[i].x - 1;
             } else if (vx + nx > ncell) {
                 x = cellX[nn] - par[i].x + 1;
@@ -124,15 +124,15 @@ void gforce_each_part(long long npar, long ncell, particle_t *par, double cellX[
                 y = cellY[nn] - par[i].y;
             }
 
-            d = sqrt(pow(x, 2) + pow(y, 2));
-
+            d = pow(x, 2) + pow(y, 2);
+            d2 = sqrt(d);
             if (d < EPSLON) {
                 f = 0;
             } else {
-                f = G * (par[i].m * cellM[nn]) / pow(d, 2);   
+                f = G * (par[i].m * cellM[nn]) / d;   
 
-                par[i].gforcex += x / (d / f);
-                par[i].gforcey += y / (d / f);
+                par[i].gforcex += x / (d2 / f);
+                par[i].gforcey += y / (d2 / f);
             }
         }
     }

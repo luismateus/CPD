@@ -4,7 +4,7 @@
 
 #define RND0_1 ((double) random() / ((long long)1<<31))
 #define G 6.67408e-11
-#define EPSLON 0.01
+#define EPSLON 0.0005
 
 typedef struct Particle_t {
    double x; /* x position */
@@ -24,6 +24,7 @@ typedef struct Cell_t {
 } cell_t;
 
 void init_particles(long seed, long ncside, long long n_part, particle_t *par) {
+    printf("1");
     long long i;
 
     srandom(seed);
@@ -41,6 +42,7 @@ void init_particles(long seed, long ncside, long long n_part, particle_t *par) {
 
 /* determine the center of mass of each cell */
 void massCenter_each_cell(int npar, int ncell, particle_t *par, cell_t *cell) {
+    printf("2");
     int n, i;
     
     for (i = 0; i < npar; i++) {
@@ -64,6 +66,7 @@ void init_cell(cell_t *cell, long grid_size) {
 
 /* compute the gravitational force applied to each particle */
 void gforce_each_part(int npar, int ncell, particle_t *par, cell_t *cell) {
+    printf("3");
     double x, y, f, d;
     int nn, c, nx, ny, vx, vy, i, n;
 
@@ -113,6 +116,7 @@ void gforce_each_part(int npar, int ncell, particle_t *par, cell_t *cell) {
 
 /* calculate the new velocity and then the new position of each particle */
 void newVelPos_each_part(int npar, int ncell, particle_t *par) {
+    printf("4");
     double ax, ay;
     int i;
 
@@ -134,6 +138,7 @@ void newVelPos_each_part(int npar, int ncell, particle_t *par) {
 }
 
 void total_center_of_mass(particle_t *par, long npar) {
+    
     double x = 0, y = 0, m = 0;
     int i;
 
@@ -149,6 +154,7 @@ void total_center_of_mass(particle_t *par, long npar) {
 
 
 int main(int argc, char *argv[]) {
+    printf("10");
     particle_t *par;
     cell_t *cell;
     int t;
