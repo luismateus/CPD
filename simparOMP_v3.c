@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <omp.h>
+#include <string.h>
 
 #define RND0_1 ((double) random() / ((long long)1<<31))
 #define G 6.67408e-11
@@ -24,7 +26,6 @@ typedef struct Cell_t {
 } cell_t;
 
 void init_particles(long seed, long ncside, long long n_part, particle_t *par) {
-    printf("1");
     long long i;
 
     srandom(seed);
@@ -41,32 +42,75 @@ void init_particles(long seed, long ncside, long long n_part, particle_t *par) {
 }
 
 /* determine the center of mass of each cell */
-void massCenter_each_cell(int npar, int ncell, particle_t *par, cell_t *cell) {
-    printf("2");
-    int n, i;
-    
-    for (i = 0; i < npar; i++) {
-        n = (int)floor(par[i].x * ncell) + ((int)floor(par[i].y * ncell)) * ncell;
+void massCenter_each_cell(int npar, int ncell, particle_t *par, cell_t *cell, int num_threads,cell_t *matrix) {
+    int j, n, i, thread_num;
 
-        cell[n].m += par[i].m;
-        cell[n].x += (par[i].x - cell[n].x) * (par[i].m / cell[n].m);
-        cell[n].y += (par[i].y - cell[n].y) * (par[i].m / cell[n].m);       
+
+    // for(j=0; j<num_threads;j++){
+    //     for(i=0; i<ncell*ncell; i++){
+    //         printf("matrix[j][i]: %f\n",matrix[j][i].m);
+    //     }
+    // }
+    
+    #pragma omp parallel for
+        for (i = 0; i < npar; i++) {
+            n = par[i].c;
+
+            thread_num = omp_get_thread_num();
+            if(!matrix[n + ncell * ncell * thread_num].m){
+                matrix[n + ncell * ncell * thread_num].m = par[i].m;
+                matrix[n + ncell * ncell * thread_num].x = par[i].x*par[i].m;
+                matrix[n + ncell * ncell * thread_num].y = par[i].y*par[i].m;
+            }
+            //printf("thread_num: %i\n",thread_num);
+             
+            else{
+                matrix[n + ncell * ncell * thread_num].m += par[i].m;
+                matrix[n + ncell * ncell * thread_num].x += par[i].x*par[i].m;
+                matrix[n + ncell * ncell * thread_num].y += par[i].y*par[i].m;
+
+            }
+        }
+    
+    for(j=0; j<num_threads;j++){
+        #pragma omp parallel for
+        for (n = 0; n < ncell*ncell; n++) {
+            cell[n].m+=matrix[n + ncell * ncell * j].m;
+            cell[n].x+=matrix[n + ncell * ncell * j].x;
+            cell[n].y+=matrix[n + ncell * ncell * j].y;
+            // matrix[j][n].y=0;
+            // matrix[j][n].m=0;
+            // matrix[j][n].x=0;
+            }
+        }
+    
+    for (n = 0; n < ncell*ncell; n++) {
+        if(cell[n].m!=0){
+            cell[n].x = cell[n].x/cell[n].m;
+            cell[n].y = cell[n].y/cell[n].m;
+            
+        }
     }
 }
 
-void init_cell(cell_t *cell, long grid_size) {
-    int i;
+void init_cell(cell_t *cell, long grid_size, int num_threads, cell_t *matrix) {
+    int i,j;
 
+    
     for (i = 0; i < grid_size * grid_size; i++) {
-        cell[i].x = 0;
-        cell[i].y = 0;
-        cell[i].m = 0;
+    cell[i].x = 0;
+    cell[i].y = 0;
+    cell[i].m = 0;
+        for (j=0; j< num_threads; j++){
+        matrix[i + grid_size * j].x = 0;
+        matrix[i + grid_size * j].y = 0;
+        matrix[i + grid_size * j].m = 0;
+        }
     }
 }
 
 /* compute the gravitational force applied to each particle */
 void gforce_each_part(int npar, int ncell, particle_t *par, cell_t *cell) {
-    printf("3");
     double x, y, f, d;
     int nn, c, nx, ny, vx, vy, i, n;
 
@@ -74,6 +118,7 @@ void gforce_each_part(int npar, int ncell, particle_t *par, cell_t *cell) {
         par[i].gforcex = 0;
         par[i].gforcey = 0;
         c = par[i].c;
+       
 
         for (n = 0; n < 9; n++) {
             nx = c % ncell;
@@ -84,6 +129,8 @@ void gforce_each_part(int npar, int ncell, particle_t *par, cell_t *cell) {
 
             nn = (nx + vx + ncell) % ncell + ((ny + vy + ncell) % ncell) * ncell;
 
+            //printf("cell[%i].y: %f\n",nn,cell[nn].y);
+
             if (vx + nx < 0) {
                 x = cell[nn].x - par[i].x - 1;
             } else if (vx + nx > ncell) {
@@ -93,20 +140,18 @@ void gforce_each_part(int npar, int ncell, particle_t *par, cell_t *cell) {
             }
             
             if (vy + ny < 0) {
-                y = cell[nn].y - par[i].y - 1;
+                y = cell[nn].y - par[i].y - 1;  
             } else if (vy + ny > ncell) {
                 y = cell[nn].y - par[i].y + 1;
             } else {
                 y = cell[nn].y - par[i].y;
             }
 
-            d = sqrt(pow(x, 2) + pow(y, 2));
-
+            d = sqrt(pow(x, 2) + pow(y, 2));  
             if (d < EPSLON) {
                 f = 0;
             } else {
-                f = G * (par[i].m * cell[nn].m) / pow(d, 2);   
-
+                f = G * (par[i].m * cell[nn].m) / pow(d, 2); 
                 par[i].gforcex += x / (d / f);
                 par[i].gforcey += y / (d / f);
             }
@@ -116,7 +161,6 @@ void gforce_each_part(int npar, int ncell, particle_t *par, cell_t *cell) {
 
 /* calculate the new velocity and then the new position of each particle */
 void newVelPos_each_part(int npar, int ncell, particle_t *par) {
-    printf("4");
     double ax, ay;
     int i;
 
@@ -154,9 +198,8 @@ void total_center_of_mass(particle_t *par, long npar) {
 
 
 int main(int argc, char *argv[]) {
-    printf("10");
     particle_t *par;
-    cell_t *cell;
+    cell_t *cell, *matrix;
     int t;
 
     /* input */
@@ -166,22 +209,37 @@ int main(int argc, char *argv[]) {
         long long n_part = strtol(argv[3], NULL, 10);
         int time_steps = strtol(argv[4], NULL, 10);
 
+        //here
+        int num_threads = 4; //try to change
+        omp_set_num_threads(num_threads);
+
         par = (particle_t *)malloc(n_part * sizeof(particle_t));
+
+        //cell_t matrix[num_threads][grid_size*grid_size];
+
+        matrix = (cell_t *)malloc(grid_size * grid_size * sizeof(cell_t) * num_threads);
+    
 
         init_particles(rand_seed, grid_size, n_part, par);
 
         cell = (cell_t *)malloc(grid_size * grid_size * sizeof(cell_t));
-        init_cell(cell, grid_size);
+        init_cell(cell, grid_size, num_threads, matrix);
+        
 
         for (t = 0; t < time_steps; t++) {
-            massCenter_each_cell(n_part, grid_size, par, cell);
+            //printf("time_step: %i\n",t);
+            massCenter_each_cell(n_part, grid_size, par, cell, num_threads, matrix);
             gforce_each_part(n_part, grid_size, par, cell);
             newVelPos_each_part(n_part, grid_size, par);
-            init_cell(cell, grid_size);
+            init_cell(cell, grid_size, num_threads, matrix);
         }
         printf("%.2f %.2f\n", par[0].x, par[0].y);
-
         total_center_of_mass(par, n_part);
+
+        //free(matrix);
+        free(matrix);
+        free(par);
+        free(cell);
     } else { 
         printf("Wrong number of arguments!\n");
     }
