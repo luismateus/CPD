@@ -46,17 +46,17 @@ void massCenter_each_cell(int npar, int ncell, particle_t *par, cell_t *cell, in
     int j, n, i, thread_num;
 
 
-    // for(j=0; j<num_threads;j++){
-    //     for(i=0; i<ncell*ncell; i++){
-    //         printf("matrix[j][i]: %f\n",matrix[j][i].m);
-    //     }
-    // }
+    
     
     #pragma omp parallel for
         for (i = 0; i < npar; i++) {
             n = par[i].c;
 
+
+
             thread_num = omp_get_thread_num();
+
+            printf("thread_num: %i ; i: %i\n",thread_num,i);
             if(!matrix[n + ncell * ncell * thread_num].m){
                 matrix[n + ncell * ncell * thread_num].m = par[i].m;
                 matrix[n + ncell * ncell * thread_num].x = par[i].x*par[i].m;
@@ -74,14 +74,14 @@ void massCenter_each_cell(int npar, int ncell, particle_t *par, cell_t *cell, in
     
     for(j=0; j<num_threads;j++){
         #pragma omp parallel for
-        for (n = 0; n < ncell*ncell; n++) {
-            cell[n].m+=matrix[n + ncell * ncell * j].m;
-            cell[n].x+=matrix[n + ncell * ncell * j].x;
-            cell[n].y+=matrix[n + ncell * ncell * j].y;
-            // matrix[j][n].y=0;
-            // matrix[j][n].m=0;
-            // matrix[j][n].x=0;
-            }
+            for (n = 0; n < ncell*ncell; n++) {
+                cell[n].m+=matrix[n + ncell * ncell * j].m;
+                cell[n].x+=matrix[n + ncell * ncell * j].x;
+                cell[n].y+=matrix[n + ncell * ncell * j].y;
+                // matrix[j][n].y=0;
+                // matrix[j][n].m=0;
+                // matrix[j][n].x=0;
+                }
         }
     
     for (n = 0; n < ncell*ncell; n++) {
@@ -102,9 +102,9 @@ void init_cell(cell_t *cell, long grid_size, int num_threads, cell_t *matrix) {
     cell[i].y = 0;
     cell[i].m = 0;
         for (j=0; j< num_threads; j++){
-        matrix[i + grid_size * j].x = 0;
-        matrix[i + grid_size * j].y = 0;
-        matrix[i + grid_size * j].m = 0;
+        matrix[i + grid_size * grid_size * j].x = 0;
+        matrix[i + grid_size * grid_size * j].y = 0;
+        matrix[i + grid_size * grid_size * j].m = 0;
         }
     }
 }
