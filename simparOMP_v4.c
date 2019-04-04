@@ -201,7 +201,7 @@ int main(int argc, char *argv[]) {
     int num_threads = 4; //try to change
     omp_set_num_threads(num_threads);
     if (argc == 5) {
-        printf("10\n");
+        //printf("10\n");
         fflush(stdout);
         long rand_seed = strtol(argv[1], NULL, 10);
         long grid_size = strtol(argv[2], NULL, 10);
@@ -219,13 +219,13 @@ int main(int argc, char *argv[]) {
         double cellX[aux], cellY[aux], cellM[aux];
 
         init_cell(aux, cellX, cellY, cellM);
-        printf("20\n");
+        //printf("20\n");
         fflush(stdout);
 
 
         int t;
         for (t = 0; t < time_steps; t++) {
-            printf("%d\n",t);
+            //printf("%d\n",t);
             fflush(stdout);
             massCenter_each_cell(n_part, grid_size,(particle_t *) par, cellX, cellY, cellM);
             gforce_each_part(n_part, grid_size,(particle_t *) par, cellX, cellY, cellM);
