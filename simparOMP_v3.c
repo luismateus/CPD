@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <assert.h>
 #include <math.h>
 #include <omp.h>
 #include <string.h>
@@ -37,7 +38,9 @@ void init_particles(long seed, long ncside, long long n_part, particle_t *par) {
         par[i].vy = RND0_1 / ncside / 10.0;
         par[i].m = RND0_1 * ncside / (G * 1e6 * n_part);
 
+        //remove this from here
         par[i].c = (int)floor(par[i].x * ncside) + ((int)floor(par[i].y * ncside)) * ncside;
+	    assert(par[i].c >= 0 && par[i].c < ncside*ncside);
     }
 }
 
@@ -46,13 +49,18 @@ void init_cell(cell_t *cell, long grid_size, int num_threads, cell_t *matrix) {
 
     #pragma omp parallel for
         for (i = 0; i < grid_size * grid_size; i++) {
-        cell[i].x = 0;
-        cell[i].y = 0;
-        cell[i].m = 0;
+            cell[i].x = 0;
+            cell[i].y = 0;
+            cell[i].m = 0;
+            assert(i >= 0 && i < grid_size*grid_size);
             for (j=0; j< num_threads; j++){
+                printf("%ld < %ld\n",i + grid_size * grid_size * j,grid_size * grid_size * num_threads);
                 matrix[i + grid_size * grid_size * j].x = 0;
                 matrix[i + grid_size * grid_size * j].y = 0;
                 matrix[i + grid_size * grid_size * j].m = 0;
+                //assert(i + grid_size * grid_size * j < grid_size * grid_size * num_threads);
+                assert(i + grid_size * grid_size * j < grid_size * grid_size * num_threads);
+
             }
         }
 }
@@ -72,11 +80,13 @@ void massCenter_each_cell(int npar, int ncell, particle_t *par, cell_t *cell, in
                 matrix[n + ncell * ncell * thread_num].m = par[i].m;
                 matrix[n + ncell * ncell * thread_num].x = par[i].x*par[i].m;
                 matrix[n + ncell * ncell * thread_num].y = par[i].y*par[i].m;
+                assert(n + ncell * ncell * thread_num >= 0 && n + ncell * ncell * thread_num < ncell * ncell * num_threads);
             }
             else{
                 matrix[n + ncell * ncell * thread_num].m += par[i].m;
                 matrix[n + ncell * ncell * thread_num].x += par[i].x*par[i].m;
                 matrix[n + ncell * ncell * thread_num].y += par[i].y*par[i].m;
+                assert(n + ncell * ncell * thread_num >= 0 && n + ncell * ncell * thread_num < ncell * ncell * num_threads);
 
             }
         }
@@ -88,9 +98,10 @@ void massCenter_each_cell(int npar, int ncell, particle_t *par, cell_t *cell, in
                 cell[n].m+=matrix[n + ncell * ncell * j].m;
                 cell[n].x+=matrix[n + ncell * ncell * j].x;
                 cell[n].y+=matrix[n + ncell * ncell * j].y;
-                matrix[n + ncell * ncell * j].y=0;
-                matrix[n + ncell * ncell * j].m=0;
-                matrix[n + ncell * ncell * j].x=0;
+                assert(n + ncell * ncell * j < ncell * ncell * num_threads);
+                // matrix[n + ncell * ncell * j].y=0;
+                // matrix[n + ncell * ncell * j].m=0;
+                // matrix[n + ncell * ncell * j].x=0;
                 }
         }
     #pragma omp parallel for
@@ -98,6 +109,7 @@ void massCenter_each_cell(int npar, int ncell, particle_t *par, cell_t *cell, in
             if(cell[n].m!=0){
                 cell[n].x = cell[n].x/cell[n].m;
                 cell[n].y = cell[n].y/cell[n].m;
+                assert(n >= 0 && n < ncell * ncell);
                 
             }
         }
