@@ -40,8 +40,6 @@ void init_particles(long seed, long ncside, long long n_part, particle_t *par) {
 
         //remove this from here
         par[i].c = (int)floor(par[i].x * ncside) + ((int)floor(par[i].y * ncside)) * ncside;
-        //if()
-	    assert(par[i].c >= 0 && par[i].c < ncside*ncside);
     }
 }
 
@@ -53,7 +51,7 @@ void init_cell(cell_t *cell, long grid_size, int num_threads, cell_t *matrix) {
             cell[i].x = 0;
             cell[i].y = 0;
             cell[i].m = 0;
-            assert(i >= 0 && i < grid_size*grid_size);
+            //assert(i >= 0 && i < grid_size*grid_size);
             //printf("num_threads: %d\n",num_threads);
             for (j=0; j< num_threads; j++){
                 //printf("%ld < %ld\n",i + grid_size * grid_size * j,grid_size * grid_size * num_threads);
@@ -62,7 +60,7 @@ void init_cell(cell_t *cell, long grid_size, int num_threads, cell_t *matrix) {
                 matrix[i + grid_size * grid_size * j].m = 0;
                 //assert(i + grid_size * grid_size * j < grid_size * grid_size * num_threads);
                 //printf("i: %d, grid: %ld, j: %d\n", i, grid_size * grid_size, j);
-                assert(i + grid_size * grid_size * j < grid_size * grid_size * num_threads);
+                //assert(i + grid_size * grid_size * j < grid_size * grid_size * num_threads);
 
             }
         }
@@ -83,14 +81,14 @@ void massCenter_each_cell(int npar, int ncell, particle_t *par, cell_t *cell, in
                 matrix[n + ncell * ncell * thread_num].m = par[i].m;
                 matrix[n + ncell * ncell * thread_num].x = par[i].x*par[i].m;
                 matrix[n + ncell * ncell * thread_num].y = par[i].y*par[i].m;
-                assert(n + ncell * ncell * thread_num < ncell * ncell * num_threads);
+                //assert(n + ncell * ncell * thread_num < ncell * ncell * num_threads);
             }
             else{
                 matrix[n + ncell * ncell * thread_num].m += par[i].m;
                 matrix[n + ncell * ncell * thread_num].x += par[i].x*par[i].m;
                 matrix[n + ncell * ncell * thread_num].y += par[i].y*par[i].m;
                 //printf("n: %d\n",n);
-                assert(n + ncell * ncell * thread_num >= 0);
+                //assert(n + ncell * ncell * thread_num >= 0);
 
             }
         }
@@ -102,29 +100,20 @@ void massCenter_each_cell(int npar, int ncell, particle_t *par, cell_t *cell, in
                 cell[n].m+=matrix[n + ncell * ncell * j].m;
                 cell[n].x+=matrix[n + ncell * ncell * j].x;
                 cell[n].y+=matrix[n + ncell * ncell * j].y;
-                assert(n + ncell * ncell * j < ncell * ncell * num_threads);
+                //assert(n + ncell * ncell * j < ncell * ncell * num_threads);
                 // matrix[n + ncell * ncell * j].y=0;
                 // matrix[n + ncell * ncell * j].m=0;
                 // matrix[n + ncell * ncell * j].x=0;
                 }
         }
-    #pragma omp parallel for
-        for (n = 0; n < ncell*ncell; n++) {
-            if(cell[n].m!=0){
-                cell[n].x = cell[n].x/cell[n].m;
-                cell[n].y = cell[n].y/cell[n].m;
-                assert(n >= 0 && n < ncell * ncell);
-                
-            }
-        }
 }
 
 /* compute the gravitational force applied to each particle */
 void gforce_each_part(int npar, int ncell, particle_t *par, cell_t *cell) {
-    double x, y, f, d;
+    double x, y, f, d, d2;
     int nn, c, nx, ny, vx, vy, i, n;
 
-    #pragma omp parallel for private(nn, c, nx, ny, vx, vy, n, x, y, f, d)
+    #pragma omp parallel for private(nn, c, nx, ny, vx, vy, n, x, y, f, d, d2)
         for (i = 0; i < npar; i++) {
             par[i].gforcex = 0;
             par[i].gforcey = 0;
@@ -158,13 +147,15 @@ void gforce_each_part(int npar, int ncell, particle_t *par, cell_t *cell) {
                     y = cell[nn].y - par[i].y;
                 }
 
-                d = sqrt(pow(x, 2) + pow(y, 2));  
+                d = pow(x, 2) + pow(y, 2);
+                d2 = sqrt(d);
                 if (d < EPSLON) {
                     f = 0;
                 } else {
-                    f = G * (par[i].m * cell[nn].m) / pow(d, 2); 
-                    par[i].gforcex += x / (d / f);
-                    par[i].gforcey += y / (d / f);
+                    f = G * (par[i].m * cell[nn].m) / d;   
+
+                    par[i].gforcex += x / (d2 / f);
+                    par[i].gforcey += y / (d2 / f);
                 }
             }
         }
@@ -190,7 +181,7 @@ void newVelPos_each_part(int npar, int ncell, particle_t *par) {
             par[i].y = fmod(par[i].y + 1 , 1);
 
             par[i].c = (int)floor(par[i].x * ncell) + ((int)floor(par[i].y * ncell)) * ncell;
-            assert(par[i].c >= 0);
+            //assert(par[i].c >= 0);
         }
 }
 
@@ -215,10 +206,10 @@ int main(int argc, char *argv[]) {
     particle_t *par;
     cell_t *cell, *matrix;
     int t;
-    int num_threads = 8; //change this
+    int num_threads = 4; //change this
     omp_set_num_threads(num_threads);
     //printf("num_threads: %d\n",omp_get_num_threads());
-
+    
     /* input */
     if (argc == 5) {
         long rand_seed = strtol(argv[1], NULL, 10);
@@ -229,15 +220,20 @@ int main(int argc, char *argv[]) {
         printf("here\n");
         par = (particle_t *)malloc(n_part * sizeof(particle_t));
         printf("out\n"); 
+        printf("00\n");
         init_particles(rand_seed, grid_size, n_part, par);
-
+        printf("01\n"); 
 
         matrix = (cell_t *)malloc(grid_size * grid_size * num_threads * sizeof(cell_t));
+        printf("02\n"); 
         cell = (cell_t *)malloc(grid_size * grid_size * sizeof(cell_t));
+        printf("03\n"); 
         init_cell(cell, grid_size,num_threads, matrix);
+        printf("04\n"); 
         
-
         for (t = 0; t < time_steps; t++) {
+            printf("%d\n",t);
+            fflush(stdout);
             massCenter_each_cell(n_part, grid_size, par, cell, num_threads, matrix);
             gforce_each_part(n_part, grid_size, par, cell);
             newVelPos_each_part(n_part, grid_size, par);
