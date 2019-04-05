@@ -91,31 +91,23 @@ void massCenter_each_cell(int npar, int cell_n, particle_t *par, cell_t *cell, i
     
     for(j=0; j<num_threads;j++){
         #pragma omp parallel for
-            for (n = 0; n < cell_n; n++) {
-                matrix_pos = n + cell_n * j;
+            for (n = 0; n < ncell*ncell; n++) { //change this
+                matrix_pos = n + ncell * ncell * j;
                 cell[n].m+=matrix[matrix_pos].m;
                 cell[n].x+=matrix[matrix_pos].x;
                 cell[n].y+=matrix[matrix_pos].y;
                 //assert(n + ncell * ncell * j < ncell * ncell * num_threads);
-                }
-        }
-    #pragma omp parallel for
-        for (n = 0; n < cell_n; n++) {
-            if(cell[n].m!=0){
-                cell[n].x = cell[n].x/cell[n].m;
-                cell[n].y = cell[n].y/cell[n].m;
-                //assert(n >= 0 && n < ncell * ncell);
                 
-            }
+                }
         }
 }
 
 /* compute the gravitational force applied to each particle */
-void gforce_each_part(int npar, int grid_size, particle_t *par, cell_t *cell) {
-    double x, y, f, d;
+void gforce_each_part(int npar, int ncell, particle_t *par, cell_t *cell) {
+    double x, y, f, d, d2;
     int nn, c, nx, ny, vx, vy, i, n;
 
-    #pragma omp parallel for private(nn, c, nx, ny, vx, vy, n, x, y, f, d)
+    #pragma omp parallel for private(nn, c, nx, ny, vx, vy, n, x, y, f, d, d2)
         for (i = 0; i < npar; i++) {
             par[i].gforcex = 0;
             par[i].gforcey = 0;
@@ -147,13 +139,15 @@ void gforce_each_part(int npar, int grid_size, particle_t *par, cell_t *cell) {
                     y = cell[nn].y - par[i].y;
                 }
 
-                d = sqrt(pow(x, 2) + pow(y, 2));  
+                d = pow(x, 2) + pow(y, 2);
+                d2 = sqrt(d);
                 if (d < EPSLON) {
                     f = 0;
                 } else {
-                    f = G * (par[i].m * cell[nn].m) / pow(d, 2); 
-                    par[i].gforcex += x / (d / f);
-                    par[i].gforcey += y / (d / f);
+                    f = G * (par[i].m * cell[nn].m) / d;   
+
+                    par[i].gforcex += x / (d2 / f);
+                    par[i].gforcey += y / (d2 / f);
                 }
             }
         }
@@ -204,9 +198,8 @@ int main(int argc, char *argv[]) {
     particle_t *par;
     cell_t *cell, *matrix;
     int t;
-    int num_threads = 8; //change this
+    int num_threads = 4; //change this
     omp_set_num_threads(num_threads);
-
     /* input */
     if (argc == 5) {
         long rand_seed = strtol(argv[1], NULL, 10);
@@ -218,12 +211,10 @@ int main(int argc, char *argv[]) {
         par = (particle_t *)malloc(n_part * sizeof(particle_t));
         init_particles(rand_seed, grid_size, n_part, par);
 
-
         matrix = (cell_t *)malloc(cell_n * num_threads * sizeof(cell_t));
         cell = (cell_t *)malloc(cell_n * sizeof(cell_t));
         init_cell(cell, cell_n,num_threads, matrix);
         
-
         for (t = 0; t < time_steps; t++) {
             massCenter_each_cell(n_part, cell_n, par, cell, num_threads, matrix);
             gforce_each_part(n_part, grid_size, par, cell);

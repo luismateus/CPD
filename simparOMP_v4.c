@@ -198,7 +198,7 @@ void total_center_of_mass(particle_t *par, long long npar) {
 int main(int argc, char *argv[]) {
     /* input */
 
-    int num_threads = 4; //try to change
+    int num_threads = 8; //try to change
     omp_set_num_threads(num_threads);
     if (argc == 5) {
         //printf("10\n");
@@ -227,6 +227,7 @@ int main(int argc, char *argv[]) {
         for (t = 0; t < time_steps; t++) {
             //printf("%d\n",t);
             fflush(stdout);
+            */
             massCenter_each_cell(n_part, grid_size,(particle_t *) par, cellX, cellY, cellM);
             gforce_each_part(n_part, grid_size,(particle_t *) par, cellX, cellY, cellM);
             newVelPos_each_part(n_part, grid_size,(particle_t *) par);
