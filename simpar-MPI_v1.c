@@ -28,6 +28,8 @@ typedef struct Cell_t {
 
 MPI_Datatype MPI_particle_t;
 MPI_Datatype MPI_cell_t;
+MPI_Datatype MPI_cell_list;
+MPI_Datatype MPI_particle_list;
 
 
 void create_mpi_particle(){
@@ -51,7 +53,7 @@ void create_mpi_particle(){
 
 }
 
-void create_mpi_cell(){
+void create_mpi_cell(double cell_n){
 
     int items = 3;
     int blocklen[3]= {1,1,1};
@@ -64,6 +66,10 @@ void create_mpi_cell(){
 
     MPI_Type_create_struct(items, blocklen, offsets, types, &MPI_cell_t);
 	MPI_Type_commit(&MPI_cell_t);
+
+    MPI_Type_contiguous(cell_n, MPI_cell_t, &MPI_cell_list);
+	MPI_Type_commit(&MPI_cell_list);
+
 
     //printf("Created MPI_cell_t ...\n");
 
@@ -111,31 +117,32 @@ void massCenter_each_cell(int npar, int cell_n, particle_t *par, cell_t *cell, c
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     printf("nprocs: %d\n",nprocs);
+    MPI_Barrier(MPI_COMM_WORLD);
 
+    MPI_Scatter(matrix, cell_n, MPI_cell_list, aux ,cell_n, MPI_cell_list, 0, MPI_COMM_WORLD); //n_part%4!=0?
 
-    printf("before scatter\n");
-    //MPI_Scatter(matrix, cell_n, MPI_DOUBLE, &aux ,cell_n, MPI_DOUBLE, 3, MPI_COMM_WORLD); // há um problema se o n_part%4!=0, resolver depois de funcionar para casos regulares 
-    MPI_Bcast(cell, cell_n, MPI_DOUBLE,0, MPI_COMM_WORLD); //maybe dont need matrix
-    printf("after scatter\n");
-    //printf("scatter: %f\n", aux[1].x);
-    //printf("Mass nprocs: %d\n",number_procs);
+    //MPI_Bcast(&cell, cell_n, MPI_cell_list,0, MPI_COMM_WORLD); //without matrix?
+    MPI_Barrier(MPI_COMM_WORLD);
+    printf("OUT!\n");
+
+    
     for (i = 0 + 4 * rank; i < npar/4 * (rank + 1); i++) { // há um problema se o n_part%4!=0, resolver depois de funcionar para casos regulares 
         //printf("i: %d, max_proc: %d\n",i, npar/nprocs * (rank + 1));
         n = par[i].c;
         printf("n: %d\n",n); //problem with n, maybe because of initialization in different processors? idk
-        matrix_pos = n + cell_n * rank;
+        matrix_pos = n;// + cell_n * rank;
         printf("matrix_pos: %d\n",matrix_pos);
-        if(!matrix[matrix_pos].m){
-            matrix[matrix_pos].m = par[i].m;
-            matrix[matrix_pos].x = par[i].x*par[i].m;
-            matrix[matrix_pos].y = par[i].y*par[i].m;
+        if(!aux[matrix_pos].m){
+            aux[matrix_pos].m = par[i].m;
+            aux[matrix_pos].x = par[i].x*par[i].m;
+            aux[matrix_pos].y = par[i].y*par[i].m;
             //assert(par[i].m && par[i].x && par[i].y != 0);
 
         }else{
             //printf("matrix.m: %f\n",matrix[matrix_pos].m);
-            matrix[matrix_pos].m += par[i].m;
-            matrix[matrix_pos].x += par[i].x*par[i].m;
-            matrix[matrix_pos].y += par[i].y*par[i].m;
+            aux[matrix_pos].m += par[i].m;
+            aux[matrix_pos].x += par[i].x*par[i].m;
+            aux[matrix_pos].y += par[i].y*par[i].m;
             //assert(par[i].m && par[i].x && par[i].y != 0);
         }
     
@@ -275,7 +282,7 @@ int main(int argc, char *argv[]) {
         }
 
         create_mpi_particle();
-        create_mpi_cell(); //invalid datatype, why?
+        create_mpi_cell(cell_n); //invalid datatype, why?
         
         MPI_Barrier(MPI_COMM_WORLD);
         //printf("nprocs: %d\n",nprocs);
