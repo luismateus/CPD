@@ -15,9 +15,9 @@ typedef struct Particle_t {
    double vx; /* velocity x */
    double vy; /* velocity y */
    double m; /* mass */
-   int c; /* cell */
    double gforcex;  
    double gforcey;
+   int c; /* cell */
 } particle_t;
 
 typedef struct Cell_t {
@@ -25,6 +25,49 @@ typedef struct Cell_t {
    double y; /* y position */
    double m; /* mass */
 } cell_t;
+
+MPI_Datatype MPI_particle_t;
+MPI_Datatype MPI_cell_t;
+
+
+void create_mpi_particle(){
+
+    int items = 8;
+    int blocklen[8]= {1,1,1,1,1,1,1,1};
+
+    MPI_Datatype types[8] = {MPI_DOUBLE,MPI_DOUBLE,MPI_DOUBLE,MPI_DOUBLE,\
+    MPI_DOUBLE,MPI_DOUBLE,MPI_DOUBLE,MPI_INT};
+    
+    MPI_Datatype MPI_particle_t;
+
+    MPI_Aint offsets[8] = {offsetof(particle_t,x), offsetof(particle_t,y), \
+    offsetof(particle_t,vx), offsetof(particle_t,vy), offsetof(particle_t,m), \
+    offsetof(particle_t,gforcex), offsetof(particle_t,gforcey), offsetof(particle_t,c)};
+
+    MPI_Type_create_struct(items, blocklen, offsets, types, &MPI_particle_t);
+	MPI_Type_commit(&MPI_particle_t);
+
+    //printf("Created MPI_particle_t ...\n");
+
+}
+
+void create_mpi_cell(){
+
+    int items = 3;
+    int blocklen[3]= {1,1,1};
+
+    MPI_Datatype types[3] = {MPI_DOUBLE,MPI_DOUBLE,MPI_DOUBLE};
+    
+    MPI_Datatype MPI_cell_t;
+
+    MPI_Aint offsets[3] = {offsetof(cell_t,x), offsetof(cell_t,y), offsetof(cell_t,m)};
+
+    MPI_Type_create_struct(items, blocklen, offsets, types, &MPI_cell_t);
+	MPI_Type_commit(&MPI_cell_t);
+
+    //printf("Created MPI_cell_t ...\n");
+
+}
 
 void init_particles(long seed, long ncside, long long n_part, particle_t *par) {
     long long i;
@@ -61,16 +104,22 @@ void init_cell(cell_t *cell, long cell_n, int num_threads, cell_t *matrix) {
 }
 
 /* determine the center of mass of each cell */
-void massCenter_each_cell(int npar, int cell_n, particle_t *par, cell_t *cell, cell_t *matrix, cell_t *aux, int rank, int nprocs) {
-    int n, i, matrix_pos;
+void massCenter_each_cell(int npar, int cell_n, particle_t *par, cell_t *cell, cell_t *matrix, cell_t *aux) {
+    int n, i, matrix_pos, nprocs, rank;
      
 
+    MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    printf("nprocs: %d\n",nprocs);
+
+
     printf("before scatter\n");
-    MPI_Scatter(matrix, cell_n, MPI_BYTE, &aux ,cell_n, MPI_BYTE, 0, MPI_COMM_WORLD);
+    //MPI_Scatter(matrix, cell_n, MPI_DOUBLE, &aux ,cell_n, MPI_DOUBLE, 3, MPI_COMM_WORLD); // há um problema se o n_part%4!=0, resolver depois de funcionar para casos regulares 
+    MPI_Bcast(cell, cell_n, MPI_DOUBLE,0, MPI_COMM_WORLD); //maybe dont need matrix
     printf("after scatter\n");
     //printf("scatter: %f\n", aux[1].x);
-    printf("Mass nprocs: %d\n",nprocs);
-    for (i = 0 + nprocs * rank; i < npar/nprocs * (rank + 1); i++) {
+    //printf("Mass nprocs: %d\n",number_procs);
+    for (i = 0 + 4 * rank; i < npar/4 * (rank + 1); i++) { // há um problema se o n_part%4!=0, resolver depois de funcionar para casos regulares 
         //printf("i: %d, max_proc: %d\n",i, npar/nprocs * (rank + 1));
         n = par[i].c;
         printf("n: %d\n",n); //problem with n, maybe because of initialization in different processors? idk
@@ -92,15 +141,15 @@ void massCenter_each_cell(int npar, int cell_n, particle_t *par, cell_t *cell, c
     
     }
     printf("HERE!\n");
-    MPI_Reduce(&aux, &cell,cell_n,MPI_BYTE,MPI_SUM,0,MPI_COMM_WORLD); //not working
+    MPI_Reduce(&cell, &aux,cell_n,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD); //not working
 
 
-    // for (n = 0; n < cell_n; n++) {
-    //     if(cell[n].m!=0){
-    //         cell[n].x = cell[n].x/cell[n].m;
-    //         cell[n].y = cell[n].y/cell[n].m;
-    //     }
-    // }    
+    for (n = 0; n < cell_n; n++) {
+        if(cell[n].m!=0){
+            cell[n].x = cell[n].x/cell[n].m;
+            cell[n].y = cell[n].y/cell[n].m;
+        }
+    }    
 }
 
 /* compute the gravitational force applied to each particle */
@@ -224,11 +273,14 @@ int main(int argc, char *argv[]) {
             cell = (cell_t *)malloc(cell_n * sizeof(cell_t));
             init_cell(cell, grid_size, nprocs, matrix);
         }
+
+        create_mpi_particle();
+        create_mpi_cell(); //invalid datatype, why?
         
         MPI_Barrier(MPI_COMM_WORLD);
-        printf("nprocs: %d\n",nprocs);
+        //printf("nprocs: %d\n",nprocs);
         for (t = 0; t < time_steps; t++) {
-            massCenter_each_cell(n_part, cell_n, par, cell, matrix, aux, rank, nprocs);
+            massCenter_each_cell(n_part, cell_n, par, cell, matrix, aux);
             
 
             gforce_each_part(n_part, grid_size, par, cell);
