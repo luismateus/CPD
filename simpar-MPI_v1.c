@@ -61,45 +61,46 @@ void init_cell(cell_t *cell, long cell_n, int num_threads, cell_t *matrix) {
 }
 
 /* determine the center of mass of each cell */
-void massCenter_each_cell(int npar, int cell_n, particle_t *par, cell_t *cell, cell_t *matrix) {
-    int n, i, rank, nprocs, matrix_pos;
+void massCenter_each_cell(int npar, int cell_n, particle_t *par, cell_t *cell, cell_t *matrix, cell_t *aux, int rank, int nprocs) {
+    int n, i, matrix_pos;
      
-    MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
-    //printf("nprocs: %d\n",nprocs);
 
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-    //dont think i need/makes cense to scatter
-    //MPI_Scatter(matrix, sizeof(matrix)*cell_n*nprocs, MPI_BYTE, &aux ,sizeof(aux)*cell_n, MPI_BYTE, 0, MPI_COMM_WORLD);
-    
+    printf("before scatter\n");
+    MPI_Scatter(matrix, cell_n, MPI_BYTE, &aux ,cell_n, MPI_BYTE, 0, MPI_COMM_WORLD);
+    printf("after scatter\n");
+    //printf("scatter: %f\n", aux[1].x);
+    printf("Mass nprocs: %d\n",nprocs);
     for (i = 0 + nprocs * rank; i < npar/nprocs * (rank + 1); i++) {
-        printf("i: %d, max_proc: %d\n",i, npar/nprocs * (rank + 1));
+        //printf("i: %d, max_proc: %d\n",i, npar/nprocs * (rank + 1));
         n = par[i].c;
         printf("n: %d\n",n); //problem with n, maybe because of initialization in different processors? idk
         matrix_pos = n + cell_n * rank;
-        printf("rank: %d\n",rank);
+        printf("matrix_pos: %d\n",matrix_pos);
         if(!matrix[matrix_pos].m){
             matrix[matrix_pos].m = par[i].m;
             matrix[matrix_pos].x = par[i].x*par[i].m;
             matrix[matrix_pos].y = par[i].y*par[i].m;
+            //assert(par[i].m && par[i].x && par[i].y != 0);
+
         }else{
-            printf("matrix.m: %f\n",matrix[matrix_pos].m);
+            //printf("matrix.m: %f\n",matrix[matrix_pos].m);
             matrix[matrix_pos].m += par[i].m;
             matrix[matrix_pos].x += par[i].x*par[i].m;
             matrix[matrix_pos].y += par[i].y*par[i].m;
+            //assert(par[i].m && par[i].x && par[i].y != 0);
         }
     
     }
     printf("HERE!\n");
-    //MPI_Reduce(&matrix, &cell,sizeof(cell)*cell_n,MPI_BYTE,MPI_SUM,0,MPI_COMM_WORLD); //not working
+    MPI_Reduce(&aux, &cell,cell_n,MPI_BYTE,MPI_SUM,0,MPI_COMM_WORLD); //not working
 
 
-    for (n = 0; n < cell_n; n++) {
-        if(cell[n].m!=0){
-            cell[n].x = cell[n].x/cell[n].m;
-            cell[n].y = cell[n].y/cell[n].m;
-        }
-    }    
+    // for (n = 0; n < cell_n; n++) {
+    //     if(cell[n].m!=0){
+    //         cell[n].x = cell[n].x/cell[n].m;
+    //         cell[n].y = cell[n].y/cell[n].m;
+    //     }
+    // }    
 }
 
 /* compute the gravitational force applied to each particle */
@@ -209,21 +210,25 @@ int main(int argc, char *argv[]) {
         int time_steps = strtol(argv[4], NULL, 10);
 
         int cell_n = grid_size*grid_size;
+        
+        MPI_Barrier(MPI_COMM_WORLD);
 
         if(rank==0){
             par = (particle_t *)malloc(n_part * sizeof(particle_t));
 
             init_particles(rand_seed, grid_size, n_part, par);
             matrix = (cell_t *)malloc(cell_n * nprocs * sizeof(cell_t));
+
+            aux = (cell_t *)malloc(cell_n * sizeof(cell_t));
     
             cell = (cell_t *)malloc(cell_n * sizeof(cell_t));
             init_cell(cell, grid_size, nprocs, matrix);
         }
         
         MPI_Barrier(MPI_COMM_WORLD);
-
+        printf("nprocs: %d\n",nprocs);
         for (t = 0; t < time_steps; t++) {
-            massCenter_each_cell(n_part, cell_n, par, cell, matrix);
+            massCenter_each_cell(n_part, cell_n, par, cell, matrix, aux, rank, nprocs);
             
 
             gforce_each_part(n_part, grid_size, par, cell);
