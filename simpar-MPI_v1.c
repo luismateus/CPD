@@ -28,11 +28,11 @@ typedef struct Cell_t {
 
 MPI_Datatype MPI_particle_t;
 MPI_Datatype MPI_cell_t;
-MPI_Datatype MPI_cell_list;
-MPI_Datatype MPI_particle_list;
+//MPI_Datatype MPI_cell_list;
+//MPI_Datatype MPI_particle_array;
 
 
-void create_mpi_particle(){
+void create_mpi_particle(double n_part){
 
     int items = 8;
     int blocklen[8]= {1,1,1,1,1,1,1,1};
@@ -50,6 +50,8 @@ void create_mpi_particle(){
 	MPI_Type_commit(&MPI_particle_t);
 
     //printf("Created MPI_particle_t ...\n");
+    // MPI_Type_contiguous(n_part, MPI_particle_t, &MPI_particle_array);
+	// MPI_Type_commit(&MPI_particle_array);
 
 }
 
@@ -119,7 +121,7 @@ void massCenter_each_cell(int npar, int cell_n, particle_t *par, cell_t *cell, p
 
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    printf("nprocs: %d\n",nprocs);
+    
     
     //MPI_Barrier(MPI_COMM_WORLD);
 
@@ -128,17 +130,14 @@ void massCenter_each_cell(int npar, int cell_n, particle_t *par, cell_t *cell, p
 
 
    // MPI_Bcast(&cell, cell_n, MPI_cell_list,0, MPI_COMM_WORLD); //without matrix?
-    
-    printf("OUT!\n");
-
-    printf("nprocs b4 FOR: %d\n",nprocs);
 
 
-    for (i = 0 + 4 * rank; i < npar/4 * (rank + 1); i++) { // n_part%4!=0
+    for (i = 0; i < npar/4; i++) { // n_part%4!=0
         //printf("i: %d, max_proc: %d\n",i, npar/nprocs * (rank + 1));
         n = par_aux[i].c;
-        
-        printf("n: %d\n",n); //problem with n, maybe because of initialization in different processors? idk
+
+        printf("nprocs: %d\n",nprocs);
+        printf("rank: %d\n",rank);
         matrix_pos = n;// + cell_n * rank;
         
         if(!cell[matrix_pos].m){
@@ -239,9 +238,9 @@ void newVelPos_each_part(int npar, int grid_size, particle_t *par) {
 
         
         par[i].c = (int)floor(par[i].x * grid_size) + ((int)floor(par[i].y * grid_size)) * grid_size;
-        if(par[i].c < 0 || par[i].c >= 400){
-            printf("par[i].c: %d\n",par[i].c);
-        }
+        // if(par[i].c <= 0 || par[i].c >= 400){
+        //     printf("par[i].c: %d\n",par[i].c);
+        // }
         //assert(par[i].c >= 0);
     }
 }
@@ -267,10 +266,30 @@ int main(int argc, char *argv[]) {
     cell_t *cell; //*matrix, *aux;
     int t, nprocs, rank;
 
+
     MPI_Init(&argc, &argv);
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
     //printf("nprocs: %d\n",nprocs);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    // MPI_Datatype MPI_particle_t;
+    // MPI_Datatype MPI_cell_t;
+
+    int items = 8;
+    int blocklen[8]= {1,1,1,1,1,1,1,1};
+
+    MPI_Datatype types[8] = {MPI_DOUBLE,MPI_DOUBLE,MPI_DOUBLE,MPI_DOUBLE,\
+    MPI_DOUBLE,MPI_DOUBLE,MPI_DOUBLE,MPI_INT};
+    
+    MPI_Datatype MPI_particle_t;
+
+    MPI_Aint offsets[8] = {offsetof(particle_t,x), offsetof(particle_t,y), \
+    offsetof(particle_t,vx), offsetof(particle_t,vy), offsetof(particle_t,m), \
+    offsetof(particle_t,gforcex), offsetof(particle_t,gforcey), offsetof(particle_t,c)};
+
+    MPI_Type_create_struct(items, blocklen, offsets, types, &MPI_particle_t);
+	MPI_Type_commit(&MPI_particle_t);
+
+
 
     /* input */
     if (argc == 5) {
@@ -304,12 +323,13 @@ int main(int argc, char *argv[]) {
 
         }
 
-        create_mpi_particle();
-        create_mpi_cell(cell_n);
+
+        //create_mpi_particle(n_part);
+        //create_mpi_cell(cell_n);
 
         MPI_Barrier(MPI_COMM_WORLD); 
 
-        MPI_Scatter(&par, n_part/4, MPI_BYTE, &par_aux , n_part/4, MPI_BYTE, 0, MPI_COMM_WORLD); //n_part%4!=0?
+        MPI_Scatter(par,n_part/4, MPI_particle_t, par_aux , n_part/4, MPI_particle_t, 0, MPI_COMM_WORLD); //n_part%4!=0?
         
         
         //printf("nprocs: %d\n",nprocs);
@@ -317,18 +337,31 @@ int main(int argc, char *argv[]) {
             massCenter_each_cell(n_part, cell_n, par, cell,par_aux);
             
 
-            gforce_each_part(n_part, grid_size, par, cell);
-            newVelPos_each_part(n_part, grid_size, par);
+            gforce_each_part(n_part/4, grid_size, par_aux, cell);
+            newVelPos_each_part(n_part/4, grid_size, par_aux);
             init_cell(cell, grid_size, nprocs);
         }
-        printf("%.2f %.2f\n", par[0].x, par[0].y);
 
-        total_center_of_mass(par, n_part);
+        if(rank == 0){
+            printf("%.2f %.2f\n", par[0].x, par[0].y);
+
+            //fazer gather do par aqui!
+
+            total_center_of_mass(par, n_part);
+            free(par_aux);
+            free(par);
+            free(cell);
+
+        }
+        else
+        {
+            free(par_aux);
+            free(cell);
+        }
+        
+       
 
         MPI_Finalize();
-        free(par_aux);
-        free(par);
-        free(cell);
        
     } else { 
         printf("Wrong number of arguments!\n");
