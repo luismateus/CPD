@@ -67,8 +67,8 @@ void create_mpi_cell(double cell_n){
     MPI_Type_create_struct(items, blocklen, offsets, types, &MPI_cell_t);
 	MPI_Type_commit(&MPI_cell_t);
 
-    MPI_Type_contiguous(cell_n, MPI_cell_t, &MPI_cell_list);
-	MPI_Type_commit(&MPI_cell_list);
+    // MPI_Type_contiguous(cell_n, MPI_cell_t, &MPI_cell_list);
+	// MPI_Type_commit(&MPI_cell_list);
 
 
     //printf("Created MPI_cell_t ...\n");
@@ -88,69 +88,78 @@ void init_particles(long seed, long ncside, long long n_part, particle_t *par) {
         par[i].m = RND0_1 * ncside / (G * 1e6 * n_part);
 
         par[i].c = (int)floor(par[i].x * ncside) + ((int)floor(par[i].y * ncside)) * ncside;
+        if(par[i].c < 0 || par[i].c >= 400){
+            printf("init_particle n: %d\n", par[i].c);
+        }
     }
 }
 
-void init_cell(cell_t *cell, long cell_n, int num_threads, cell_t *matrix) {
-    int i, j, matrix_pos;
+void init_cell(cell_t *cell, long cell_n, int num_threads) { //, cell_t *matrix
+    int i, j;//, matrix_pos;
 
     for (i = 0; i < cell_n; i++) {
         
         cell[i].x = 0;
         cell[i].y = 0;
         cell[i].m = 0;
-        for (j=0; j< num_threads; j++){
-            matrix_pos = i + cell_n * j;
-            matrix[matrix_pos].x = 0;
-            matrix[matrix_pos].y = 0;
-            matrix[matrix_pos].m = 0;
+        // for (j=0; j< num_threads; j++){
+        //     matrix_pos = i + cell_n * j;
+        //     matrix[matrix_pos].x = 0;
+        //     matrix[matrix_pos].y = 0;
+        //     matrix[matrix_pos].m = 0;
 
-        }
+        // }
     }
 }
 
 /* determine the center of mass of each cell */
-void massCenter_each_cell(int npar, int cell_n, particle_t *par, cell_t *cell, cell_t *matrix, cell_t *aux) {
+void massCenter_each_cell(int npar, int cell_n, particle_t *par, cell_t *cell, particle_t *par_aux) {
     int n, i, matrix_pos, nprocs, rank;
      
 
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     printf("nprocs: %d\n",nprocs);
-    MPI_Barrier(MPI_COMM_WORLD);
+    
+    //MPI_Barrier(MPI_COMM_WORLD);
 
-    MPI_Scatter(matrix, cell_n, MPI_cell_list, aux ,cell_n, MPI_cell_list, 0, MPI_COMM_WORLD); //n_part%4!=0?
+    //MPI_Scatter(&matrix, cell_n, MPI_cell_t, &aux ,cell_n, MPI_BYTE, 0, MPI_COMM_WORLD); //n_part%4!=0?
+    //MPI_cell_list
 
-    //MPI_Bcast(&cell, cell_n, MPI_cell_list,0, MPI_COMM_WORLD); //without matrix?
-    MPI_Barrier(MPI_COMM_WORLD);
+
+   // MPI_Bcast(&cell, cell_n, MPI_cell_list,0, MPI_COMM_WORLD); //without matrix?
+    
     printf("OUT!\n");
 
-    
-    for (i = 0 + 4 * rank; i < npar/4 * (rank + 1); i++) { // há um problema se o n_part%4!=0, resolver depois de funcionar para casos regulares 
+    printf("nprocs b4 FOR: %d\n",nprocs);
+
+
+    for (i = 0 + 4 * rank; i < npar/4 * (rank + 1); i++) { // n_part%4!=0
         //printf("i: %d, max_proc: %d\n",i, npar/nprocs * (rank + 1));
-        n = par[i].c;
+        n = par_aux[i].c;
+        
         printf("n: %d\n",n); //problem with n, maybe because of initialization in different processors? idk
         matrix_pos = n;// + cell_n * rank;
-        printf("matrix_pos: %d\n",matrix_pos);
-        if(!aux[matrix_pos].m){
-            aux[matrix_pos].m = par[i].m;
-            aux[matrix_pos].x = par[i].x*par[i].m;
-            aux[matrix_pos].y = par[i].y*par[i].m;
+        
+        if(!cell[matrix_pos].m){
+            cell[matrix_pos].m = par_aux[i].m;
+            cell[matrix_pos].x = par_aux[i].x*par_aux[i].m;
+            cell[matrix_pos].y = par_aux[i].y*par_aux[i].m;
             //assert(par[i].m && par[i].x && par[i].y != 0);
 
         }else{
             //printf("matrix.m: %f\n",matrix[matrix_pos].m);
-            aux[matrix_pos].m += par[i].m;
-            aux[matrix_pos].x += par[i].x*par[i].m;
-            aux[matrix_pos].y += par[i].y*par[i].m;
+            cell[matrix_pos].m += par_aux[i].m;
+            cell[matrix_pos].x += par_aux[i].x*par_aux[i].m;
+            cell[matrix_pos].y += par_aux[i].y*par_aux[i].m;
             //assert(par[i].m && par[i].x && par[i].y != 0);
         }
     
     }
     printf("HERE!\n");
-    MPI_Reduce(&cell, &aux,cell_n,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD); //not working
+    //MPI_Reduce(&cell, &cell,cell_n,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD); //not working
 
-
+    //alterar
     for (n = 0; n < cell_n; n++) {
         if(cell[n].m!=0){
             cell[n].x = cell[n].x/cell[n].m;
@@ -227,7 +236,12 @@ void newVelPos_each_part(int npar, int grid_size, particle_t *par) {
         par[i].y += par[i].vy + par[i].gforcey / 2;
         par[i].y = fmod(par[i].y + 1 , 1);
 
+
+        
         par[i].c = (int)floor(par[i].x * grid_size) + ((int)floor(par[i].y * grid_size)) * grid_size;
+        if(par[i].c < 0 || par[i].c >= 400){
+            printf("par[i].c: %d\n",par[i].c);
+        }
         //assert(par[i].c >= 0);
     }
 }
@@ -249,8 +263,8 @@ void total_center_of_mass(particle_t *par, long npar) {
 
 
 int main(int argc, char *argv[]) {
-    particle_t *par;
-    cell_t *cell, *matrix, *aux;
+    particle_t *par, *par_aux;
+    cell_t *cell; //*matrix, *aux;
     int t, nprocs, rank;
 
     MPI_Init(&argc, &argv);
@@ -272,34 +286,47 @@ int main(int argc, char *argv[]) {
         if(rank==0){
             par = (particle_t *)malloc(n_part * sizeof(particle_t));
 
-            init_particles(rand_seed, grid_size, n_part, par);
-            matrix = (cell_t *)malloc(cell_n * nprocs * sizeof(cell_t));
+            par_aux = (particle_t *)malloc(n_part/4 * sizeof(particle_t));
 
-            aux = (cell_t *)malloc(cell_n * sizeof(cell_t));
+            init_particles(rand_seed, grid_size, n_part, par);
+            //matrix = (cell_t *)malloc(cell_n * nprocs * sizeof(cell_t));
     
             cell = (cell_t *)malloc(cell_n * sizeof(cell_t));
-            init_cell(cell, grid_size, nprocs, matrix);
+            init_cell(cell, grid_size, nprocs);
+
+        }else{
+            par_aux = (particle_t *)malloc(n_part/4 * sizeof(particle_t));
+
+            cell = (cell_t *)malloc(cell_n * sizeof(cell_t));
+
+            init_cell(cell, grid_size, nprocs);
+
+
         }
 
         create_mpi_particle();
-        create_mpi_cell(cell_n); //invalid datatype, why?
+        create_mpi_cell(cell_n);
+
+        MPI_Barrier(MPI_COMM_WORLD); 
+
+        MPI_Scatter(&par, n_part/4, MPI_BYTE, &par_aux , n_part/4, MPI_BYTE, 0, MPI_COMM_WORLD); //n_part%4!=0?
         
-        MPI_Barrier(MPI_COMM_WORLD);
+        
         //printf("nprocs: %d\n",nprocs);
         for (t = 0; t < time_steps; t++) {
-            massCenter_each_cell(n_part, cell_n, par, cell, matrix, aux);
+            massCenter_each_cell(n_part, cell_n, par, cell,par_aux);
             
 
             gforce_each_part(n_part, grid_size, par, cell);
             newVelPos_each_part(n_part, grid_size, par);
-            init_cell(cell, grid_size, nprocs, matrix);
+            init_cell(cell, grid_size, nprocs);
         }
         printf("%.2f %.2f\n", par[0].x, par[0].y);
 
         total_center_of_mass(par, n_part);
 
         MPI_Finalize();
-        free(matrix);
+        free(par_aux);
         free(par);
         free(cell);
        
