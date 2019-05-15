@@ -323,30 +323,23 @@ int main(int argc, char *argv[]) {
 
         }
 
-
-        //create_mpi_particle(n_part);
-        //create_mpi_cell(cell_n);
-
         MPI_Barrier(MPI_COMM_WORLD); 
 
         MPI_Scatter(par,n_part/4, MPI_particle_t, par_aux , n_part/4, MPI_particle_t, 0, MPI_COMM_WORLD); //n_part%4!=0?
-        
-        
+  
         //printf("nprocs: %d\n",nprocs);
         for (t = 0; t < time_steps; t++) {
             massCenter_each_cell(n_part, cell_n, par, cell,par_aux);
-            
 
             gforce_each_part(n_part/4, grid_size, par_aux, cell);
             newVelPos_each_part(n_part/4, grid_size, par_aux);
             init_cell(cell, grid_size, nprocs);
         }
 
+        //fazer gather do par aqui!
+
         if(rank == 0){
             printf("%.2f %.2f\n", par[0].x, par[0].y);
-
-            //fazer gather do par aqui!
-
             total_center_of_mass(par, n_part);
             free(par_aux);
             free(par);
