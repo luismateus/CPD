@@ -65,7 +65,7 @@ void massCenter_each_cell(int npar, int cell_n, particle_t *par, cell_t *cell, p
     int n, i, matrix_pos, nprocs, rank;
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    for (i = 0; i < npar/4; i++) { // n_part%4!=0
+    for (i = 0; i < npar/nprocs; i++) { // n_part%4!=0
         
         matrix_pos = par_aux[i].c;// + cell_n * rank;
         
@@ -253,7 +253,7 @@ int main(int argc, char *argv[]) {
         if(rank==0){
             par = (particle_t *)malloc(n_part * sizeof(particle_t));
 
-            par_aux = (particle_t *)malloc(n_part/4 * sizeof(particle_t));
+            par_aux = (particle_t *)malloc(n_part/nprocs * sizeof(particle_t));
 
             init_particles(rand_seed, grid_size, n_part, par);
             //matrix = (cell_t *)malloc(cell_n * nprocs * sizeof(cell_t));
@@ -263,31 +263,28 @@ int main(int argc, char *argv[]) {
             init_cell(cell, grid_size, nprocs);
 
         }else{
-            par_aux = (particle_t *)malloc(n_part/4 * sizeof(particle_t));
+            par_aux = (particle_t *)malloc(n_part/nprocs * sizeof(particle_t));
 
             cell = (cell_t *)malloc(cell_n * sizeof(cell_t));
             cell_sum=cell;
             init_cell(cell, grid_size, nprocs);
-
-
         }
 
-        MPI_Barrier(MPI_COMM_WORLD); 
-        MPI_Scatter(par,n_part/4, MPI_particle_t, par_aux , n_part/4, MPI_particle_t, 0, MPI_COMM_WORLD); //n_part%4!=0?
-        MPI_Barrier(MPI_COMM_WORLD); 
+        
+        MPI_Scatter(par,n_part/nprocs, MPI_particle_t, par_aux , n_part/nprocs, MPI_particle_t, 0, MPI_COMM_WORLD); //n_part%4!=0?
         
         //printf("nprocs: %d\n",nprocs);
         for (t = 0; t < time_steps; t++) {
             massCenter_each_cell(n_part, cell_n, par, cell,par_aux,MPI_cell_t,CellSum,cell_sum);
             //MPI_Reduce(cell,cell,cell_n,MPI_cell_t,MPI_SUM,0,MPI_COMM_WORLD);
-            gforce_each_part(n_part/4, grid_size, par_aux, cell);
-            newVelPos_each_part(n_part/4, grid_size, par_aux);
+            gforce_each_part(n_part/nprocs, grid_size, par_aux, cell);
+            newVelPos_each_part(n_part/nprocs, grid_size, par_aux);
             init_cell(cell, grid_size, nprocs);
         }
         if(rank == 0){
             printf("%.2f %.2f\n", par[0].x, par[0].y);
         }
-        total_center_of_mass(par_aux, n_part/4, rank);
+        total_center_of_mass(par_aux, n_part/nprocs, rank);
         
         if(rank == 0){
             free(par_aux);
