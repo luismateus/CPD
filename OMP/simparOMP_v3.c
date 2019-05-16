@@ -178,7 +178,7 @@ void total_center_of_mass(particle_t *par, long npar) {
     double x = 0, y = 0, m = 0;
     int i;
 
-    #pragma parallel for reduction(+:x,y,m)
+    #pragma omp parallel for reduction(+:x,y,m)
         for (i = 0; i < npar; i++) {
             m += par[i].m;
             x += par[i].x * par[i].m;
