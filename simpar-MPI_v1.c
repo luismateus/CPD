@@ -53,7 +53,7 @@ void init_particles(long seed, long ncside, long long n_part, particle_t *par) {
 void init_cell(cell_t *cell, long cell_n) { //, cell_t *matrix
     int i;
 
-    #pragma omp parallel for
+    //#pragma omp parallel for
         for (i = 0; i < cell_n; i++) {
             cell[i].x = 0;
             cell[i].y = 0;
@@ -66,7 +66,6 @@ void massCenter_each_cell(int npar, int cell_n, particle_t *par, cell_t *cell, p
     int n, i, matrix_pos, nprocs, rank;
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
     for (i = 0; i < npar; i++) { // n_part%4!=0
         
         //printf("proc: %d, par_aux[i].c: %d\n",rank,par_aux[i].c);
@@ -94,7 +93,7 @@ void massCenter_each_cell(int npar, int cell_n, particle_t *par, cell_t *cell, p
     MPI_Reduce(cell,cell_sum,cell_n,datatype,op,0,MPI_COMM_WORLD); 
 
     if (rank==0){
-        #pragma omp parallel for
+        //#pragma omp parallel for
         for (n = 0; n < cell_n; n++) {
             if(cell_sum[n].m!=0){
                 cell_sum[n].x = cell_sum[n].x/cell_sum[n].m;
@@ -111,9 +110,8 @@ void massCenter_each_cell(int npar, int cell_n, particle_t *par, cell_t *cell, p
 void gforce_each_part(int npar, int grid_size, particle_t *par, cell_t *cell) {
     double x, y, f, d, d2;
     int nn, c, nx, ny, vx, vy, i, n;
-    //printf("2\n");
 
-    #pragma omp parallel for private(x, y, f, d, d2,n, c, nx, ny, vx, vy)
+    //#pragma omp parallel for private(x, y, f, d, d2,n, c, nx, ny, vx, vy)
     for (i = 0; i < npar; i++) {
         par[i].gforcex = 0;
         par[i].gforcey = 0;
@@ -168,8 +166,7 @@ void gforce_each_part(int npar, int grid_size, particle_t *par, cell_t *cell) {
 /* calculate the new velocity and then the new position of each particle */
 void newVelPos_each_part(int npar, int grid_size, particle_t *par) {
     int i;
-    //printf("3\n");
-    #pragma omp parallel for
+    //#pragma omp parallel for
     for(i = 0; i < npar; i++) {
 
         if(par[i].c == -10){
@@ -194,9 +191,8 @@ void newVelPos_each_part(int npar, int grid_size, particle_t *par) {
 void total_center_of_mass(particle_t *par, long npar,int rank) {
     double x = 0, y = 0, m = 0;
     int i;
-    //printf("4\n");
 
-    #pragma omp parallel for reduction(+:x,y,m)
+    //#pragma omp parallel for reduction(+:x,y,m)
     for (i = 0; i < npar; i++) {
 
         if(par[i].c == -10){
@@ -223,7 +219,7 @@ void total_center_of_mass(particle_t *par, long npar,int rank) {
 void mySum(cell_t *invec, cell_t *inoutvec, int *len, MPI_Datatype *dtype)
 {
     int i;
-    #pragma omp parallel for
+    //#pragma omp parallel for
     for ( i=0; i<*len; i++ ) {
         inoutvec[i].m += invec[i].m;
         inoutvec[i].x += invec[i].x;
