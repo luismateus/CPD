@@ -120,21 +120,8 @@ void init_cell(cell_t *cell, long cell_n, int num_threads) { //, cell_t *matrix
 /* determine the center of mass of each cell */
 void massCenter_each_cell(int npar, int cell_n, particle_t *par, cell_t *cell, particle_t *par_aux, MPI_Datatype datatype,MPI_Op op,cell_t *cell_sum) {
     int n, i, matrix_pos, nprocs, rank;
-     
-
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    
-    
-    //MPI_Barrier(MPI_COMM_WORLD);
-
-    //MPI_Scatter(&matrix, cell_n, MPI_cell_t, &aux ,cell_n, MPI_BYTE, 0, MPI_COMM_WORLD); //n_part%4!=0?
-    //MPI_cell_list
-
-
-   // MPI_Bcast(&cell, cell_n, MPI_cell_list,0, MPI_COMM_WORLD); //without matrix?
-
-
     for (i = 0; i < npar/4; i++) { // n_part%4!=0
         //printf("i: %d, max_proc: %d\n",i, npar/nprocs * (rank + 1));
         n = par_aux[i].c;
@@ -159,15 +146,6 @@ void massCenter_each_cell(int npar, int cell_n, particle_t *par, cell_t *cell, p
         }
     
     }
-    printf("HERE!\n");
-
-    /*
-    if(rank==0){
-        printf("123\n");
-        MPI_Reduce(cell,cell,cell_n,datatype,op,0,MPI_COMM_WORLD); //not working
-        printf("321\n");
-    }
-    */
     MPI_Reduce(cell,cell_sum,cell_n,datatype,op,0,MPI_COMM_WORLD); 
     if (rank==0){
         for (n = 0; n < cell_n; n++) {
@@ -178,10 +156,7 @@ void massCenter_each_cell(int npar, int cell_n, particle_t *par, cell_t *cell, p
         }
         cell=cell_sum;
     }
-    MPI_Barrier(MPI_COMM_WORLD); 
     MPI_Bcast(cell, cell_n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    MPI_Barrier(MPI_COMM_WORLD); 
-    printf("value %f,%f, %d\n",cell[50].m,cell_sum[50].m,rank);
 }
 
 /* compute the gravitational force applied to each particle */
@@ -262,7 +237,7 @@ void newVelPos_each_part(int npar, int grid_size, particle_t *par) {
     }
 }
 
-void total_center_of_mass(particle_t *par, long npar) {
+void total_center_of_mass(particle_t *par, long npar,int rank) {
     
     double x = 0, y = 0, m = 0;
     int i;
@@ -272,9 +247,16 @@ void total_center_of_mass(particle_t *par, long npar) {
         x += par[i].x * par[i].m;
         y += par[i].y * par[i].m;
     }
-    x /= m;
-    y /= m;
-    printf("%.2f %.2f\n", x, y);
+    double x2,y2,m2;
+    
+    MPI_Reduce(&x,&x2,1,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
+    MPI_Reduce(&y,&y2,1,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
+    MPI_Reduce(&m,&m2,1,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
+    if (rank==0){
+        x2 /= m2;
+        y2 /= m2;
+        printf("%.2f %.2f\n", x2, y2);
+    }
 }
 
 void mySum(cell_t *invec, cell_t *inoutvec, int *len, MPI_Datatype *dtype)
@@ -364,9 +346,8 @@ int main(int argc, char *argv[]) {
         //create_mpi_cell(cell_n);
 
         MPI_Barrier(MPI_COMM_WORLD); 
-
         MPI_Scatter(par,n_part/4, MPI_particle_t, par_aux , n_part/4, MPI_particle_t, 0, MPI_COMM_WORLD); //n_part%4!=0?
-        
+        MPI_Barrier(MPI_COMM_WORLD); 
         
         //printf("nprocs: %d\n",nprocs);
         for (t = 0; t < time_steps; t++) {
@@ -376,13 +357,12 @@ int main(int argc, char *argv[]) {
             newVelPos_each_part(n_part/4, grid_size, par_aux);
             init_cell(cell, grid_size, nprocs);
         }
-
         if(rank == 0){
             printf("%.2f %.2f\n", par[0].x, par[0].y);
-
-            //fazer gather do par aqui!
-
-            total_center_of_mass(par, n_part);
+        }
+        total_center_of_mass(par_aux, n_part/4, rank);
+        
+        if(rank == 0){
             free(par_aux);
             free(par);
             free(cell);
