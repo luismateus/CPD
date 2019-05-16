@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <math.h>
 #include <mpi.h>
+#include <omp.h>
 #include <string.h>
 
 #define RND0_1 ((double) random() / ((long long)1<<31))
@@ -49,15 +50,15 @@ void init_particles(long seed, long ncside, long long n_part, particle_t *par) {
     }
 }
 
-void init_cell(cell_t *cell, long cell_n, int num_threads) { //, cell_t *matrix
-    int i, j;//, matrix_pos;
+void init_cell(cell_t *cell, long cell_n) { //, cell_t *matrix
+    int i;
 
-    for (i = 0; i < cell_n; i++) {
-        
-        cell[i].x = 0;
-        cell[i].y = 0;
-        cell[i].m = 0;
-    }
+    #pragma omp parallel for
+        for (i = 0; i < cell_n; i++) {
+            cell[i].x = 0;
+            cell[i].y = 0;
+            cell[i].m = 0;
+        }
 }
 
 /* determine the center of mass of each cell */
@@ -65,9 +66,10 @@ void massCenter_each_cell(int npar, int cell_n, particle_t *par, cell_t *cell, p
     int n, i, matrix_pos, nprocs, rank;
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    
+
     for (i = 0; i < npar; i++) { // n_part%4!=0
         
+        //printf("proc: %d, par_aux[i].c: %d\n",rank,par_aux[i].c);
         matrix_pos = par_aux[i].c;// + cell_n * rank;
         if(matrix_pos == -10){
             //printf("proc:%d; i: %d, par_aux[i].c: %d\n",rank,i,par_aux[i].c);
@@ -87,14 +89,12 @@ void massCenter_each_cell(int npar, int cell_n, particle_t *par, cell_t *cell, p
             cell[matrix_pos].y += par_aux[i].y*par_aux[i].m;
             //assert(par[i].m && par[i].x && par[i].y != 0);
         }
-
     
     }
-    printf("HERE\n");
     MPI_Reduce(cell,cell_sum,cell_n,datatype,op,0,MPI_COMM_WORLD); 
-    printf("OUT\n");
 
     if (rank==0){
+        #pragma omp parallel for
         for (n = 0; n < cell_n; n++) {
             if(cell_sum[n].m!=0){
                 cell_sum[n].x = cell_sum[n].x/cell_sum[n].m;
@@ -111,7 +111,9 @@ void massCenter_each_cell(int npar, int cell_n, particle_t *par, cell_t *cell, p
 void gforce_each_part(int npar, int grid_size, particle_t *par, cell_t *cell) {
     double x, y, f, d, d2;
     int nn, c, nx, ny, vx, vy, i, n;
+    //printf("2\n");
 
+    #pragma omp parallel for private(x, y, f, d, d2,n, c, nx, ny, vx, vy)
     for (i = 0; i < npar; i++) {
         par[i].gforcex = 0;
         par[i].gforcey = 0;
@@ -166,6 +168,8 @@ void gforce_each_part(int npar, int grid_size, particle_t *par, cell_t *cell) {
 /* calculate the new velocity and then the new position of each particle */
 void newVelPos_each_part(int npar, int grid_size, particle_t *par) {
     int i;
+    //printf("3\n");
+    #pragma omp parallel for
     for(i = 0; i < npar; i++) {
 
         if(par[i].c == -10){
@@ -190,7 +194,9 @@ void newVelPos_each_part(int npar, int grid_size, particle_t *par) {
 void total_center_of_mass(particle_t *par, long npar,int rank) {
     double x = 0, y = 0, m = 0;
     int i;
+    //printf("4\n");
 
+    #pragma omp parallel for reduction(+:x,y,m)
     for (i = 0; i < npar; i++) {
 
         if(par[i].c == -10){
@@ -209,6 +215,7 @@ void total_center_of_mass(particle_t *par, long npar,int rank) {
     if (rank==0){
         x2 /= m2;
         y2 /= m2;
+        printf("%.2f %.2f\n", par[0].x, par[0].y);
         printf("%.2f %.2f\n", x2, y2);
     }
 }
@@ -216,6 +223,7 @@ void total_center_of_mass(particle_t *par, long npar,int rank) {
 void mySum(cell_t *invec, cell_t *inoutvec, int *len, MPI_Datatype *dtype)
 {
     int i;
+    #pragma omp parallel for
     for ( i=0; i<*len; i++ ) {
         inoutvec[i].m += invec[i].m;
         inoutvec[i].x += invec[i].x;
@@ -270,13 +278,15 @@ int main(int argc, char *argv[]) {
 
         int cell_n = grid_size*grid_size;
         
-        MPI_Barrier(MPI_COMM_WORLD);
+        
 
         if(n_part%nprocs != 0){
             malloc_count = 1 + ((n_part - 1) / nprocs);
         }else{
             malloc_count = n_part/nprocs;
         }
+
+        MPI_Barrier(MPI_COMM_WORLD);
 
         if(rank==0){
             par = (particle_t *)malloc(n_part * sizeof(particle_t));
@@ -287,8 +297,8 @@ int main(int argc, char *argv[]) {
             //matrix = (cell_t *)malloc(cell_n * nprocs * sizeof(cell_t));
             cell_sum=(cell_t *)malloc(cell_n * sizeof(cell_t));
             cell = (cell_t *)malloc(cell_n * sizeof(cell_t));
-            init_cell(cell_sum, grid_size, nprocs);
-            init_cell(cell, grid_size, nprocs);
+            init_cell(cell_sum, cell_n);
+            init_cell(cell, cell_n);
             //printf("calc: %lld / %d = %ld ; rest: %lld\n",n_part,nprocs,malloc_count,n_part%nprocs);
 
 
@@ -296,14 +306,16 @@ int main(int argc, char *argv[]) {
             par_aux = (particle_t *)malloc(malloc_count * sizeof(particle_t));
             cell = (cell_t *)malloc(cell_n * sizeof(cell_t));
             cell_sum=cell;
-            init_cell(cell, grid_size, nprocs);
+            init_cell(cell, cell_n);
         }        
         
         MPI_Scatter(par,malloc_count, MPI_particle_t, par_aux , malloc_count, MPI_particle_t, 0, MPI_COMM_WORLD); //n_part%4!=0?
         
-        for(i = 0; i<nprocs - n_part%nprocs; i++){
-            if(rank == nprocs-i-1){
-                par_aux[malloc_count - i-1].c = -10;
+        for(i = 0; i< n_part%nprocs ; i++){
+            //printf("proc: %d, par_aux[i].c: %d\n",rank,par_aux[i].c);
+            if(rank == nprocs-1){
+                par_aux[malloc_count-i-1].c = -10;
+                //printf("proc: %d, i: %d,par_aux[i].c: %d\n",rank,i,par_aux[malloc_count-i-1].c);
             }
         }
         MPI_Barrier(MPI_COMM_WORLD);
@@ -315,11 +327,9 @@ int main(int argc, char *argv[]) {
             //MPI_Reduce(cell,cell,cell_n,MPI_cell_t,MPI_SUM,0,MPI_COMM_WORLD);
             gforce_each_part(malloc_count, grid_size, par_aux, cell);
             newVelPos_each_part(malloc_count, grid_size, par_aux);
-            init_cell(cell, grid_size, nprocs);
+            init_cell(cell, cell_n);
         }
-        if(rank == 0){
-            printf("%.2f %.2f\n", par_aux[0].x, par_aux[0].y);
-        }
+        MPI_Barrier(MPI_COMM_WORLD);
 
         total_center_of_mass(par_aux, malloc_count, rank);
         
