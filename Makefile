@@ -1,5 +1,5 @@
 simpar: 
-	mpicc -g -o simpar simpar-MPI_v1.c -lm
+	mpicc -g -o simpar simpar-mpi.c -lm
 
 clean:
 	rm simpar
